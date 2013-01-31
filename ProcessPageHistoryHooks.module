@@ -1,0 +1,337 @@
+<?php
+
+/**
+ * Hooks for Process Page History
+ *
+ * This module inserts hooks required by Process Page History module and
+ * handles saving data to related database table. Separated from main module
+ * to keep ProcessWire from autoloading as much unnecessary code as possible.
+ * 
+ * For detailed information, installation instructions etc. see README.md.
+ *
+ * @copyright Copyright (c) 2013, Teppo Koivula
+ *
+ * ProcessWire 2.x 
+ * Copyright (C) 2013 by Ryan Cramer 
+ * Licensed under GNU/GPL v2, see LICENSE.TXT
+ * 
+ * http://processwire.com
+ *
+ */
+ 
+class ProcessPageHistoryHooks extends WireData implements Module, ConfigurableModule {
+
+    /**
+     * Return information about this module (required)
+     *
+     * @return array
+     */
+    public static function getModuleInfo() {
+        return array(
+            'title' => 'Page History Hooks',
+            'summary' => 'Hooks required by Process Page History for collecting data',
+            'href' => '',
+            'author' => 'Teppo Koivula',
+            'version' => 100,
+            'singular' => true,
+            'autoload' => true,
+            'requires' => 'ProcessPageHistory'
+        ); 
+    }
+
+    /**
+     * Default configuration for this module
+     *
+     * The point of putting this in it's own function is so that you don't have to specify
+     * these defaults more than once.
+     *
+     * @return array
+     */
+    static public function getDefaultData() {
+        return array(
+            'operations' => array(
+                'added',
+                'moved',
+                'edited',
+                'trashed',
+                'renamed',
+                'deleted',
+                'restored',
+                'published',
+                'unpublished'
+            )
+        );
+    }
+    
+    /**
+     * Name of database table used by this module
+     *
+     */
+    const TABLE_NAME = 'process_page_history';
+
+    /**
+     * Populate the default config data
+     *
+     * ProcessWire will automatically overwrite it with anything the user has specifically configured.
+     * This is done in construct() rather than init() because ProcessWire populates config data after
+     * construct(), but before init().
+     *
+     */
+    public function __construct() {
+        foreach(self::getDefaultData() as $key => $value) {
+            $this->$key = $value;
+        }
+    }
+
+    /**
+     * Module configuration
+     *
+     * @param array $data
+     * @return InputfieldWrapper
+     */
+    static public function getModuleConfigInputfields(array $data) {
+
+        // this is a container for fields, basically like a fieldset
+        $fields = new InputfieldWrapper();
+
+        // since this is a static function, we can't use $this->modules, so get them from the global wire() function
+        $modules = wire('modules');
+
+        // merge default config settings (custom values overwrite defaults)
+        $defaults = self::getDefaultData();
+        $data = array_merge($defaults, $data);
+
+        // which operations should be tracked?
+        $field = $modules->get("InputfieldCheckboxes");
+        $field->name = "operations";
+        $field->label = __("Operations");
+        $field->addOptions(array(
+                "added" => __("added"),
+                "moved" => __("moved"),
+                "edited" => __("edited"),
+                "trashed" => __("trashed"),
+                "renamed" => __("renamed"),
+                "deleted" => __("deleted"),
+                "restored" => __("restored"),
+                "published" => __("published"),
+                "unpublished" => __("unpublished")
+            ));
+        $field->attr('value', $data['operations']);
+        $field->description = __("You can choose which operations to keep track of here.");
+        $field->notes = __("Note that unchecking operations later won't remove rows containing them from database, but new rows won't be created and they won't be visible at history page anymore.");
+        $fields->add($field);
+
+        // for how long should history be retained?
+        $field = $modules->get("InputfieldSelect");
+        $field->name = "history_max_age";
+        $field->label = __("History max age");
+        $field->description = __("How long should we retain history?");
+        if ($modules->isInstalled("LazyCron")) {
+            $field->addOption('1 WEEK', __('1 week'));
+            $field->addOption('2 WEEK', __('2 weeks'));
+            $field->addOption('1 MONTH', __('1 month'));
+            $field->addOption('2 MONTH', __('2 months'));
+            $field->addOption('3 MONTH', __('3 months'));
+            $field->addOption('6 MONTH', __('6 months'));
+            $field->addOption('1 YEAR', __('1 year'));
+            $field->notes = __("Leave empty to disable automatic cleanup.");
+        } else {
+            $field->notes = __("Automatic cleanup requires LazyCron module, which isn't currently installed.");
+        }
+        if (isset($data['history_max_age'])) $field->value = $data['history_max_age'];
+        $fields->add($field);
+
+        return $fields;
+    }
+
+    /**
+     * Initialization function
+     *
+     * This function attachs required hooks.
+     *
+     */
+    public function init() {
+
+        // remove expired history rows daily
+        $this->addHook("LazyCron::everyDay", $this, 'cleanup');
+
+		// add hooks that gather information and trigger insert
+		$this->pages->addHook('added', $this, 'logPageEvent'); 
+		$this->pages->addHook('moved', $this, 'logPageEvent'); 
+		$this->pages->addHook('renamed', $this, 'logPageEvent'); 
+		$this->pages->addHook('deleted', $this, 'logPageEvent'); 
+		$this->pages->addHook('saveReady', $this, 'logPageEvent'); 
+		$this->pages->addHookAfter('saveReady', $this, 'logPageEvent'); 
+
+        // hook after ProcessController::execute to include a JavaScript file (admin only)
+        $this->addHookAfter('ProcessController::execute', $this, 'hookExecute');
+
+    }
+
+    /**
+     * Delete data older than max age defined in module settings
+     *
+     */
+    public function cleanup() {
+
+        if (!$this->history_max_age) return;
+
+        $interval = $this->db->escape_string($this->history_max_age);
+        $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE timestamp < DATE_SUB(NOW(), INTERVAL $interval)";
+        $this->db->query($sql);
+
+    }
+
+    /**
+     * Based on event method and other information available this
+     * method parses required data and triggers insert method.
+     *
+     * @param HookEvent $event
+     */
+    public function logPageEvent(HookEvent $event) {
+
+        $page = $event->arguments[0];
+
+        // don't log operations for repeaters or admin pages
+        if ($page instanceof RepeaterPage || $page->template == "admin") return;
+
+        // grab current operation from event
+        $operation = $event->method;
+        if ($operation == "saveReady") {
+            static $saved = array();
+            if (in_array($page->id, $saved)) {
+                if (!$page->isTrash() && $page->isChanged('status') && $page->is(Page::statusUnpublished)) {
+                    $operation = "unpublished";
+                } else if ($page->isChanged('status') && !$page->is(Page::statusUnpublished)) {
+                    $operation = "published";
+                } else return;
+            } else {
+                $saved[] = $page->id;
+                $operation = "edited";
+            }
+        }
+
+        // only continue if this operation is set to be logged
+        if (!in_array($operation, $this->operations)) return;
+
+        if ($operation == "edited") {
+            // if page has no id, it's currently being added
+            if (!$page->id) return;
+            // if page has previous parent, it's being restored or trashed
+            if ($page->parentPrevious) return;
+            if ($page->isChanged()) {
+                $fields_edited = '';
+                foreach ($page->template->fields as $field) {
+                    if ($page->isChanged($field)) {
+                        if ($fields_edited) $fields_edited .= ", ";
+                        $fields_edited .= $field->name;
+                    }
+                }
+                // only continue if at least one field has been changed
+                if (!$fields_edited) return;
+            } else return;
+        } else if ($operation == "renamed") {
+            // if previous parent is trash, page is being restored
+            if ($page->parentPrevious->id == $this->config->trashPageID) return;
+            // if current parent is trash, page is being trashed
+            else if ($page->parent->id == $this->config->trashPageID) return;
+        } else if ($operation == "moved") {
+            // catch pages being trashed or restored from trash
+            if ($page->parent->id == $this->config->trashPageID) {
+                // page is being trashed
+                $operation = "trashed";
+            } else if ($page->parentPrevious->id == $this->config->trashPageID) {
+                // page is being restored
+                $operation = "restored";
+            }
+        }
+
+        // details will contain any available information about
+        // the page being edited, trashed, moved etc.
+        $details = array();
+
+        if ($page->title) $details['Page title'] = $page->title;
+
+        if ($page->namePrevious) {
+            if ($operation == "moved") {
+                $details['Page name'] = $page->namePrevious;
+            } else {
+                $details['Previous page name'] = $page->namePrevious;
+                if ($page->name) $details['Current page name'] = $page->name;
+            }
+        } else if ($page->name) {
+            $details['Page name'] = $page->name;
+        }
+
+        if ($operation != "edited") {
+            // for pages being edited current or previous parent is irrelevant
+            // data since changing parent will also trigger "moved" operation.
+            if ($page->parentPrevious) {
+                $details['Previous URL'] = $page->parentPrevious->url;
+                if ($page->namePrevious) $details['Previous URL'] .= $page->namePrevious."/";
+                else $details['Previous URL'] .= $page->name."/";
+                $details['Current URL'] = $page->url;
+            } else {
+                $details['Page URL'] = $page->url;
+            }
+        } else {
+            // this only applies to pages being edited (no other operation
+            // keeps record of edited fields)
+            $details['Page URL'] = $page->url;
+            if (isset($fields_edited) && $fields_edited) {
+                $details['Fields edited'] = $fields_edited;
+            }
+        }
+
+        $this->insert($operation, $page->id, $details);
+
+    }
+
+    /**
+     * Insert history row into database
+     *
+     * @param string $operation
+     * @param int $pages_id
+     * @param array $details
+     * 
+     */
+    private function insert($operation, $pages_id, $details = array()) {
+
+        if (!in_array($operation, $this->operations)) throw new WireException('Unknown operation');
+
+        $pages_id = (int) $pages_id;
+        $user_id = $this->user->id;
+        $username = $this->user->name;
+
+        // validate and encode details to JSON
+        if ($details) {
+            foreach ($details as &$detail) {
+                $detail = str_replace("'", "", $detail);
+                $detail = wire()->sanitizer->text($detail);
+            }
+            $details = json_encode($details);
+        } else $details = null;
+
+        // insert new row into database
+        $sql_fields = "user_id, username, pages_id, operation, data";
+        $sql_values = "$user_id, '$username', $pages_id, '$operation', '$details'";
+        $sql = "INSERT INTO " . self::TABLE_NAME . " ($sql_fields) VALUES ($sql_values)";
+        $this->db->query($sql);
+        
+    }
+    
+    /**
+     * This function is executed before page markup has been created
+     *
+     * Used for injecting custom JavaScript file and Datepicker plugin to
+     * admin page. Custom JS file contains mostly UI level additions.
+     *
+     * @param HookEvent $event
+     */
+    public function hookExecute(HookEvent $event) {
+        if ($this->page->process !== "ProcessPageHistory") return;
+        $this->config->scripts->add($this->config->urls->ProcessPageHistory."js/script.js?v=100"); 
+        $this->config->styles->add($this->config->urls->InputfieldDatetime."InputfieldDatetime.css?v=103");
+    }
+
+}

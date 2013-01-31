@@ -1,0 +1,594 @@
+<?php
+
+/**
+ * Process Page History
+ *
+ * This module keeps track of changes (edits, additions, removals etc.) on
+ * pages of your site.
+ *
+ * For detailed information, installation instructions etc. see README.md.
+ *
+ * @copyright Copyright (c) 2013, Teppo Koivula
+ *
+ * ProcessWire 2.x 
+ * Copyright (C) 2013 by Ryan Cramer 
+ * Licensed under GNU/GPL v2, see LICENSE.TXT
+ * 
+ * http://processwire.com
+ *
+ */
+ 
+class ProcessPageHistory extends Process implements ConfigurableModule {
+    
+    /**
+     * Return information about this module (required)
+     *
+     * @return array
+     */
+    public static function getModuleInfo() {
+        return array(
+            'title' => 'Page History',
+            'summary' => 'Keep track of page history (edits, removals, additions etc.)',
+            'href' => '',
+            'author' => 'Teppo Koivula',
+            'version' => 100,
+            'singular' => true,
+            'autoload' => false,
+            'installs' => 'ProcessPageHistoryHooks'
+        ); 
+    }
+    
+    /**
+     * Default configuration for this module
+     *
+     * The point of putting this in it's own function is so that you don't have to specify
+     * these defaults more than once.
+     *
+     * @return array
+     */
+    static public function getDefaultData() {
+        return array(
+            'row_limit' => 25,
+            'row_label' => 'name',
+            'date_format' => 'Y-m-d H:i:s'
+        );
+    }
+    
+    /**
+     * Names of admin page and database table used by this module
+     *
+     */
+    const PAGE_NAME = 'page-history';
+    const TABLE_NAME = 'process_page_history';
+
+    /**
+     * Array of operations being logged
+     *
+     */
+    protected $operations = array();
+
+    /**
+     * Populate the default config data
+     *
+     * ProcessWire will automatically overwrite it with anything the user has specifically configured.
+     * This is done in construct() rather than init() because ProcessWire populates config data after
+     * construct(), but before init().
+     *
+     */
+    public function __construct() {
+        // settings of ProcessPageHistoryHooks module define which operations get logged,
+        // so we'll get that information from there in order to keep things consistent.
+        $config = $this->modules->getModuleConfigData("ProcessPageHistoryHooks");
+        if (isset($config['operations'])) {
+            $this->operations = $config['operations'];
+        } else {
+            $defaults = $this->modules->get("ProcessPageHistoryHooks")->getDefaultData();
+            $this->operations = $defaults['operations'];
+        }
+        // default settings for current module
+        foreach(self::getDefaultData() as $key => $value) {
+            $this->$key = $value;
+        }
+    }
+
+    /**
+     * Module configuration
+     *
+     * @param array $data
+     * @return InputfieldWrapper
+     */
+    static public function getModuleConfigInputfields(array $data) {
+
+        // this is a container for fields, basically like a fieldset
+        $fields = new InputfieldWrapper();
+
+        // since this is a static function, we can't use $this->modules, so get them from the global wire() function
+        $modules = wire('modules');
+
+        // merge default config settings (custom values overwrite defaults)
+        $defaults = self::getDefaultData();
+        $data = array_merge($defaults, $data);
+
+        // date format used
+        $field = $modules->get("InputfieldText");
+        $field->name = "date_format";
+        $field->label = __("Date Format");
+        $field->notes = __("See the [PHP date](http://www.php.net/manual/en/function.date.php) function reference for more information on how to customize this format.");
+        $field->value = ($data['date_format']) ? $data['date_format'] : $defaults['date_format'];
+        $field->size = 70;
+        $fields->add($field);
+
+        // number of results visible at once
+        $field = $modules->get("InputfieldSelect");
+        $field->name = "row_limit";
+        $field->label = __("Row Limit");
+        $field->description = __("Number of history rows visible at once");
+        $field->required = true;
+        $field->addOptions(array(25 => '25', 50 => '50', 75 => '75', 100 => '100'));
+        $field->value = $data['row_limit'];
+        $fields->add($field);
+
+        // field to use as row label
+        $field = $modules->get("InputfieldSelect");
+        $field->name = "row_label";
+        $field->label = __("Row Label");
+        $field->description = __("Which field should be used as row label?");
+        $field->required = true;
+        $field->addOptions(array(
+                'name' => 'Page name',
+                'url' => 'Page URL'
+            ));
+        $field->value = $data['row_label'];
+        $fields->add($field);
+
+        return $fields;
+    }
+
+    /**
+     * Initialization function called before any execute functions
+     *
+     */
+    public function init() {
+        parent::init();
+    }
+
+    /**
+     * Executed when a page with this Process assigned is accessed
+      *
+     * @return string
+     */
+    public function ___execute() {
+        
+        // setup admin data table
+        $table = $this->modules->get("MarkupAdminDataTable");
+        $table->setEncodeEntities(false);
+        $table->setClass('history');
+        $table->headerRow(array(
+                __('User'),
+                __('When'),
+                __('What'),
+                '', // placeholder
+                __('More')
+            ));
+
+        // should date formatting occur?
+        $defaults = self::getDefaultData();
+        $date_format = ($this->date_format != $defaults['date_format']) ? $this->date_format : null;
+
+        // apply filters
+        $filters = array();
+        $allowed_keys = array(
+            "id",
+            "user_id",
+            "username",
+            "pages_id",
+            "operation",
+            "when",
+            "date_from",
+            "date_until"
+        );
+        $allowed_intervals = array(
+            "1 DAY",
+            "1 WEEK",
+            "1 MONTH",
+            "1 YEAR"
+        );
+        foreach ($this->input->get as $key => $value) {
+            if (in_array($key, $allowed_keys) && $value != "") {
+                $value = $this->db->real_escape_string($value);
+                if ($key == "operation" && !in_array($value, $this->operations)) {
+                    // only operations being currently logged can be used here
+                    unset($this->input->get->$key);
+                    continue;
+                }
+                if ($key == "data") {
+                    $filters[] = "$key LIKE '%$value%'";
+                } else if ($key == "when") {
+                    if (in_array($value, $allowed_intervals)) {
+                        $filters['when'] = "DATE_SUB(CURDATE(), INTERVAL $value) <= timestamp";
+                    }
+                } else if ($key == "date_from" || $key == "date_until") {
+                    if (!isset($filters['when'])) {
+                        $value = date("Y-m-d", strtotime($value));
+                        if ($key == "date_from") {
+                            $operator = ">=";
+                            $time = "00:00";
+                        } else {
+                            $operator = "<=";
+                            $time = "23:59";
+                        }
+                        $filters[$key] = "timestamp $operator '$value $time'";
+                    }
+                } else {
+                    if (strpos($value, "!") === 0) {
+                        $value = substr($value, 1);
+                        $operator = "!=";
+                    } else {
+                        $operator = "=";
+                    }
+                    $filters[] = "$key $operator '$value'";
+                }
+            }
+        }
+
+        // make sure that only operations being currently logged are visible,
+        // even after selecting "all operations"
+        if (!$this->input->get->operation) {
+            $key = "operation";
+            $value = "";
+            foreach ($this->operations as $operation) {
+                if ($value) $value .= ",";
+                $value .= "'".$this->db->real_escape_string($operation)."'";
+            }
+            $filters[] = "$key IN($value)";
+        }
+
+        // if filters exist, put together where clause
+        $where = "";
+        if (count($filters)) {
+            $where = " WHERE";
+            foreach ($filters as $filter) $where .= " $filter AND";
+            $where = substr($where, 0, strlen($where)-4);
+        }
+
+        // variables required by pager
+        $start = 0;
+        $limit = $this->row_limit;
+        $total = $this->db->query("SELECT count(*) FROM " . self::TABLE_NAME . $where)->fetch_row();
+        $total = $total[0];
+        if ($total > $limit) {
+            $start = ($this->input->get->page) ? (int) ($this->input->get->page-1)*$limit : 0;
+            if ($start > $total) $start = $total-$limit;
+        }
+
+        // if less than two matches were found, disable table sorting
+        if ($total < 2) $table->setSortable(false);
+
+        // fetch history rows from database
+        $sql = "SELECT *
+                FROM " . self::TABLE_NAME . " 
+                $where 
+                ORDER BY timestamp DESC, id DESC
+                LIMIT $start, $limit";
+        $result = $this->db->query($sql);
+
+        while($row = $result->fetch_assoc()) {
+
+            // empty container
+            $data = array();
+            
+            // escape values (just a precaution really)
+            foreach ($row as $key => $value) {
+                if ($key != "data") $row[$key] = htmlentities($value);
+            }
+
+            // basic user information; if user_id is set user exists or at least existed at
+            // the time of action (still need to check if that's currently true though)
+            if ($row['user_id']) {
+                $user = $this->users->get($row['user_id']);
+                if ($user->id) $data[$user->name] = $this->config->urls->admin."access/users/edit/?id=".$user->id;
+                else $data[] = $row['username'] . " <em>(" . __("deleted") . ")</em>";
+            } else {
+                // @todo check if API calls get logged, otherwise remove this
+                $data[] = "<em>(" . __("nonexistent") . ")</em>";
+            }
+
+            // timestamp (raw timestamp is hidden and only included to allow proper ordering with JavaScript)
+            $date = ($date_format) ? date($date_format, strtotime($row['timestamp'])) : $row['timestamp'];
+            $data[] = "<span>{$row['timestamp']}</span>$date";
+
+            // translatable operations
+            // __('added')
+            // __('moved')
+            // __('edited')
+            // __('trashed')
+            // __('renamed')
+            // _x('deleted', 'operation')
+            // __('restored')
+            // __('published')
+            // __('unpublished')
+
+            // variables we're going to need later on
+            $target = "";
+            $operation = $row['operation'];
+            $page = $this->pages->get($row['pages_id']);
+            $details = json_decode($row['data'], true);
+            
+            // start putting together human-readable version of what happened
+            if ($operation == "renamed") {
+                if ($this->row_label == "url") {
+                    $target .= $details['Previous URL'] . " ";
+                    $target .= "<strong>" . __("as") . "</strong> ";
+                    $target .= $details['Current URL'];
+                } else {
+                    $target .= $details['Previous page name'] . " ";
+                    $target .= "<strong>" . __("as") . "</strong> ";
+                    $target .= $details['Current page name'];
+                }
+            } else if ($operation == "trashed") {
+                if ($this->row_label == "url") $target .= $details['Previous URL'];
+                else $target .= $details['Previous page name'];
+            } else if ($operation == "restored") {
+                if ($this->row_label == "url") $target .= $details['Current URL'];
+                else $target .= $details['Current page name'];
+            } else if (
+                ($this->row_label == "name" && isset($details['Page name'])) || 
+                ($this->row_label == "url" && isset($details['Page URL']))
+            ) {
+                if ($this->row_label == "url") $target .= $details['Page URL'];
+                else $target .= $details['Page name'];
+            } else if ($this->row_label == "name" && isset($details['Current page name'])) {
+                $target .= $details['Current page name'];
+            } else if ($this->row_label == "url" && isset($details['Current URL'])) {
+                $target .= $details['Current URL'];
+            }
+
+            // add either edit link or deleted note
+            if (!$page->id) $target .= " <em>(" . __("deleted") . ")</em>";
+            else $target .= " &nbsp; <a class='edit' href='../../page/edit/?id={$page->id}'>" . __("edit page") . "</a></em>";
+
+            // phrase "deleted" is used in multiple contexts, define which one to use
+            if ($operation == "deleted") $operation_i18n = _x($operation, 'operation');
+            else $operation_i18n = __($operation);
+
+            $data[] = "<strong>$operation_i18n</strong> $target";
+
+            // link for removing individual history row
+            $data[] = "<a href='./delete/?id={$row['id']}' class='remove'>" . __("remove?") . "</a>";
+
+            // more details about page in question
+            if ($details) $data[] = $this->renderDetails($operation, $details);
+            else $data[] = __("No data available.");
+
+            $table->row($data);
+            
+        }
+
+        // pager markup
+        $get = "";
+        foreach ($this->input->get as $key => $value) {
+            if ($key != "page" && $value != "") $get .= "&$key=$value";
+        }
+        $pager_pages = ceil($total/$limit)+1;
+        $pager_page = ($start/$limit)+1;
+        $pager = "";
+        if ($total > $limit) {
+            $pager .= "<ul class='MarkupPagerNav MarkupPagerNavCustom'>";
+            for ($i=1; $i<$pager_pages; ++$i) {
+                $pager_here = ($pager_page == $i) ? " class='MarkupPagerNavOn'" : "";
+                $pager .= "<li$pager_here><a href='./?page=$i$get'><span>$i</span></a></li>";
+            }
+            $pager .= "</ul>";
+        }
+
+        // UI translations
+        $translations = "<div id='translations'>";
+        $translations .= "<span data-term='more'>" . __("more") . "</span>";
+        $translations .= "<span data-term='less'>" . __("less") . "</span>";
+        $translations .= "<span data-term='are_you_sure'>" . __("Are you sure?") . "</span>";
+        $translations .= "<span data-term='remove_failed'>" . __("Sorry, remove failed") . "</span>";
+        $translations .= "</div>";
+
+        // Basic information about found rows
+        $info = "<div id='info'><p>";
+        $info .= sprintf(_n("One matching row found.", "%d matching rows found.", $total), $total);
+        $info .= "</p></div>";
+
+        // return admin data table markup, pager and translations
+        return $this->renderFilters().$info.$table->render().$pager.$translations;
+
+    }
+
+    /**
+     * Render human readable view of history row details
+     *
+     * @param string $operation
+     * @param array $details
+     * @return string
+     */
+    private function renderDetails($operation = null, $details = array()) {
+
+        // action details are required
+        if (!$details) return false;
+
+        // init vars
+        $markup = "";
+        $class = ($operation) ? " icon-$operation" : "";
+
+        // translatable phrases
+        // __('Previous page name')
+        // __('Current page name')
+        // __('Page name')
+        // __('Page title')
+        // __('Parent page')
+        // __('Previous parent page')
+        // __('Page URL')
+        // __('Previous URL')
+        // __('Current URL')
+        // __('Fields edited')
+
+        foreach ($details as $key => $value) {
+            // escape key and value
+            $key = htmlentities($key);
+            $value = htmlentities($value);
+            // generate markup
+            $markup .= "<tr><th>" . __($key) . "</th><td>$value</td></tr>";
+        }
+        
+        return "<table class='details$class'>$markup</table>";
+
+    }
+
+    /**
+     * Executed when requesting removal of an individual row
+     *
+     * @return boolean
+     */
+    public function ___executeDelete() {
+
+        if ((int) $this->input->get->id != $this->input->get->id) return false;
+
+        $id = (int) $this->input->get->id;
+        $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE id = $id LIMIT 1";
+        $this->db->query($sql);
+
+        return true;
+
+    }
+
+    /**
+     * Render markup for result filter UI
+     *
+     * @return string 
+     */
+    private function renderFilters() {
+
+        $markup = "<form id='filters'>";
+
+        // Action types
+        $operation = $this->db->real_escape_string($this->input->get->operation);
+        $markup .= "<select name='operation'>";
+        $markup .= "<option value=''>" . __("All operations") . "</option>";
+        foreach ($this->operations as $item) {
+            // phrase "deleted" is used in multiple contexts, define which one to use
+            if ($item == "deleted") $item_i18n = _x($item, 'operation');
+            else $item_i18n = __($item);
+            $selected = ($operation == $item) ? " selected='selected'" : "";
+            $markup .= "<option value='$item'$selected>$item_i18n</option>";
+        }
+        $markup .= "</select>";
+
+        // Username
+        $username = $this->input->get->username;
+        $where = ($operation) ? " WHERE operation = '$operation'" : "";
+        $sql = "SELECT DISTINCT username FROM " . self::TABLE_NAME . "$where ORDER BY username DESC";
+        $result = $this->db->query($sql);
+        $usernames = (!$result->num_rows || $result->num_rows > 1) ? "<option value=''>" . __("by any user") . "</option>" : "";
+        while($row = $result->fetch_assoc()) {
+            $selected = ($username == $row['username']) ? " selected='selected'" : "";
+            $usernames .= "<option value='{$row['username']}'$selected>" . sprintf(__("by %s"), $row['username']) . "</option>"; // by %s // %s will be replaced run-time by username
+        }
+        $markup .= "<select name='username'>$usernames</select>";
+
+        // Date options
+        $markup .= "<select name='when'>";
+        $markup .= "<option value=''>" . __("whenever") . "</option>";
+        $selected = ($this->input->get->when == "1 DAY") ? " selected='selected'" : "";
+        $markup .= "<option$selected value='1 DAY'>" . __("within a day") . "</option>";
+        $selected = ($this->input->get->when == "1 WEEK") ? " selected='selected'" : "";
+        $markup .= "<option$selected value='1 WEEK'>" . __("within a week") . "</option>";
+        $selected = ($this->input->get->when == "1 MONTH") ? " selected='selected'" : "";
+        $markup .= "<option$selected value='1 MONTH'>" . __("within a month") . "</option>";
+        $selected = ($this->input->get->when == "1 YEAR") ? " selected='selected'" : "";
+        $markup .= "<option$selected value='1 YEAR'>" . __("within a year") . "</option>";
+        $selected = ($this->input->get->when == "between") ? " selected='selected'" : "";
+        $markup .= "<option$selected value='between'>" . __("between") . "</option>";
+        $markup .= "</select>";
+
+        // Date range
+        $disabled_title = __("Not relevant in this context");
+        $date_from = ($this->input->get->date_from) ? date('d.m.Y', strtotime($this->input->get->date_from)) : '';
+        $markup .= "<input type='text' value='$date_from' size='10' data-maxdate='+0D' data-dateformat='dd.mm.yy' name='date_from' data-disabled-title='$disabled_title' class='history-datepicker' />";
+        $markup .= " .. ";
+        $date_until = ($this->input->get->date_until) ? date('d.m.Y', strtotime($this->input->get->date_until)) : '';
+        $markup .= "<input type='text' value='$date_until' size='10' data-maxdate='+0D' data-dateformat='dd.mm.yy' name='date_until' class='history-datepicker' />";
+
+        $markup .= "</form>";
+
+        return $markup;
+        
+    }
+
+    /**
+     * Called only when this module is installed
+     *
+     * Creates new page with this Process module assigned and new database
+     * table for storing history data.
+     *
+     */
+    public function ___install() {
+
+        // create database table this module requires
+        $sql = "
+        CREATE TABLE " . self::TABLE_NAME . " (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            user_id INT(10) UNSIGNED NOT NULL DEFAULT 0,
+            username VARCHAR(128) DEFAULT NULL,
+            pages_id INT(10) UNSIGNED NOT NULL DEFAULT 0,
+            operation VARCHAR(128) NOT NULL,
+            data TEXT DEFAULT NULL,
+            timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE = MYISAM;
+        ";
+        $this->db->query($sql);
+
+        // tell the user that we've created new database table
+        $this->message("Created Table: " . self::TABLE_NAME); 
+
+        // create a page for this module
+        $page = new Page();
+        $page->template = 'admin';
+        $page->name = self::PAGE_NAME; 
+        $page->process = $this; 
+
+        // insert page under setup at admin
+        $page->parent = $this->pages->get($this->config->adminRootPageID)->child('name=setup');
+
+        // make page title match module title
+        $info = self::getModuleInfo();
+        $page->title = $info['title'];
+
+        // save the page
+        $page->save();
+
+        // tell user that we've created a new page
+        $this->message("Created Page: {$page->path}"); 
+
+    }
+
+    /**
+     * Called only when this module is uninstalled
+     *
+     * Removes page associated with this Process module and also drops related table.
+     *
+     */
+    public function ___uninstall() {
+
+        // find the page we installed, locating it by the process field (which has the module ID)
+        // it would probably be sufficient just to locate by name, but this is just to be extra sure.
+        $moduleID = $this->modules->getModuleID($this); 
+        $page = $this->pages->get("template=admin, process=$moduleID, name=" . self::PAGE_NAME); 
+
+        if($page->id) {
+            // if we found the page, let the user know and delete it
+            $this->message("Deleting Page: {$page->path}"); 
+            $page->delete();
+        }
+
+        // if database table exists, drop it
+        $this->message("Deleting Table: " . self::TABLE_NAME);
+        $this->db->query("DROP TABLE IF EXISTS " . self::TABLE_NAME);
+
+    }
+    
+}
