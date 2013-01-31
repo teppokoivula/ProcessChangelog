@@ -78,12 +78,14 @@ class ProcessPageHistory extends Process implements ConfigurableModule {
     public function __construct() {
         // settings of ProcessPageHistoryHooks module define which operations get logged,
         // so we'll get that information from there in order to keep things consistent.
-        $config = $this->modules->getModuleConfigData("ProcessPageHistoryHooks");
-        if (isset($config['operations'])) {
-            $this->operations = $config['operations'];
-        } else {
-            $defaults = $this->modules->get("ProcessPageHistoryHooks")->getDefaultData();
-            $this->operations = $defaults['operations'];
+        if ($this->modules->isInstalled("ProcessPageHistoryHooks")) {
+            $config = $this->modules->getModuleConfigData("ProcessPageHistoryHooks");
+            if (isset($config['operations'])) {
+                $this->operations = $config['operations'];
+            } else {
+                $defaults = $this->modules->get("ProcessPageHistoryHooks")->getDefaultData();
+                $this->operations = $defaults['operations'];
+            }
         }
         // default settings for current module
         foreach(self::getDefaultData() as $key => $value) {
