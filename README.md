@@ -1,26 +1,25 @@
-Process Page History Module
-============================
+Process Changelog Module
+========================
 
-This module keeps track of changes (edits, additions, removals etc.) for
-public (non-admin) pages of your site. It is not intended as a version control
-solution -- it's primary goal is to provide admin users with a rough overview
-of page changes.
+This module keeps track of changes (edits, additions, removals etc.) on your
+site. It is not intended as a version control solution; rather than that, it's
+primary goal is to provide admin users with quick overview of changes.
 
 ## Installing
 
-Copy ProcessPageHistory folder to your /site/modules/, go to Admin > Modules,
-hit "Check for new modules" and install Page History. Page History Hooks will
-be installed automatically with Process Page History.
+Copy ProcessChangelog folder to your /site/modules/, go to Admin > Modules,
+hit "Check for new modules" and install Process Changelog. Process Changelog
+Hooks module will be installed automatically with Process Changelog.
 
 Note: this module requires ProcessWire 2.2 or newer. Automatic cleanup feature
 requires LazyCron module, which is included in ProcessWire core distribution.
 Automatic cleanup isn't required for this module to work but it's highly
 recommended to avoid cluttering custom database table used by Process
-Page History with unnecessary / unwanted old rows.
+Changelog with unnecessary / unwanted old rows.
 
 ## How to use
 
-During install a new Page History page is created, placed by default under
+During install a new Changelog page is created, placed by default under
 Admin > Settings. From there you'll find information about each change on
 public pages since this module was installed. Clicking *more* link at the
 end of each row reveals more information about that particular change.
@@ -31,36 +30,36 @@ This module provides couple of settings you should be aware of. Since this
 module actually consists of two modules, one of which handles view side and
 other data collection, both have their own settings:
 
-### Process Page History
+### Process Changelog
 
 **Date Format**
 
-* Defines how dates are formatted on Page History page
+* Defines how dates are formatted on Changelog page
 * See the PHP date function reference for information on how to customize
   this setting: http://www.php.net/manual/en/function.date.php
 * Default: j.n.Y H:i
 
 **Row Limit**
 
-* Defines number of page history rows visible at once on Page History page
+* Defines number of rows visible at once on Changelog page
 * Default: 25
 
 **Row Label**
 
-* Defines which field will be used as row label (page identifier) on Page
-  History page
+* Defines which field will be used as row label (page identifier) on
+  Changelog page
 * Default: Page name
 
-### Process Page History Hooks
+### Process Changelog Hooks
 
 **Operations**
 
 * Defines which operations to keep track of / which should be ignored.
 * Default: all available operations
 
-**History Max Age**
+**Data Max Age**
 
-* Defines how long history is kept before being removed automatically.
+* Defines how long collected data is kept before being removed automatically.
 * Please note that automatic cleanup requires LazyCron module!
 * Default: forever (no automatic cleanup)
 

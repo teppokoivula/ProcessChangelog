@@ -2,7 +2,7 @@ $(document).ready(function() {
     // more/less links
     var more = $('span[data-term=more]').text();
     var less = $('span[data-term=less]').text();
-    $('table.history tr').each(function() {
+    $('table.changelog tr').each(function() {
         $(this)
             .find('td:eq(4)')
                 .addClass('details')
@@ -11,8 +11,8 @@ $(document).ready(function() {
                     .after('<a href="#" class="toggle-more">'+more+' <b>&or;</b></a>');
     });
     // more/less functionality
-    $('table.history th:eq(4)').css('width', '100px');
-    $('table.history td.details a').toggle(function() {
+    $('table.changelog th:eq(4)').css('width', '100px');
+    $('table.changelog td.details a').toggle(function() {
         $(this)
             .html(less + ' <b>&and;</b>')
             .parents('tr:first')
@@ -31,7 +31,7 @@ $(document).ready(function() {
     // remove link
     var are_you_sure = $('span[data-term=are_you_sure]').text();
     var remove_failed = $('span[data-term=remove_failed]').text();
-    $('table.history a.remove').live('click', function() {
+    $('table.changelog a.remove').live('click', function() {
         if (confirm(are_you_sure)) {
             var $link = $(this);
             $.get($(this).attr('href'), function(data) {
@@ -46,8 +46,8 @@ $(document).ready(function() {
         return false;
     });
     // hide extra info when ordering data
-    $('table.history th.header').click(function() {
-        $('table.history tr.open a.toggle-more').click();
+    $('table.changelog th.header').click(function() {
+        $('table.changelog tr.open a.toggle-more').click();
     });
     // when data is filtered by id and only one row exists, show info by default
     var getp = window.location.search.replace("?", "");
@@ -60,13 +60,13 @@ $(document).ready(function() {
     });
     // hide nonrelevant options in filter form
     if ($('form#filters select[name=when] option[selected]').attr('value') != "between") {
-        $('form#filters .history-datepicker')
+        $('form#filters .changelog-datepicker')
             .addClass('disabled')
             .attr('title', $('form#filters input[name=date_from]').attr('data-disabled-title'))
             .attr('disabled', 'disabled');
     }
     // datepicker
-    $('.history-datepicker').each(function() {
+    $('.changelog-datepicker').each(function() {
         var options = {
             dateFormat: $(this).attr('data-dateformat'),
             minDate: $(this).attr('data-mindate'),

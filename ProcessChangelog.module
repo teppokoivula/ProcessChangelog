@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Process Page History
+ * Process Changelog
  *
  * This module keeps track of changes (edits, additions, removals etc.) on
  * pages of your site.
@@ -18,7 +18,7 @@
  *
  */
  
-class ProcessPageHistory extends Process implements ConfigurableModule {
+class ProcessChangelog extends Process implements ConfigurableModule {
     
     /**
      * Return information about this module (required)
@@ -27,14 +27,14 @@ class ProcessPageHistory extends Process implements ConfigurableModule {
      */
     public static function getModuleInfo() {
         return array(
-            'title' => 'Page History',
-            'summary' => 'Keep track of page history (edits, removals, additions etc.)',
+            'title' => 'Changelog',
+            'summary' => 'Keep track of changes (edits, removals, additions etc.)',
             'href' => '',
             'author' => 'Teppo Koivula',
             'version' => 100,
             'singular' => true,
             'autoload' => false,
-            'installs' => 'ProcessPageHistoryHooks'
+            'installs' => 'ProcessChangelogHooks'
         ); 
     }
     
@@ -58,8 +58,8 @@ class ProcessPageHistory extends Process implements ConfigurableModule {
      * Names of admin page and database table used by this module
      *
      */
-    const PAGE_NAME = 'page-history';
-    const TABLE_NAME = 'process_page_history';
+    const PAGE_NAME = 'changelog';
+    const TABLE_NAME = 'process_changelog';
 
     /**
      * Array of operations being logged
@@ -76,14 +76,14 @@ class ProcessPageHistory extends Process implements ConfigurableModule {
      *
      */
     public function __construct() {
-        // settings of ProcessPageHistoryHooks module define which operations get logged,
+        // settings of ProcessChangelogHooks module define which operations get logged,
         // so we'll get that information from there in order to keep things consistent.
-        if ($this->modules->isInstalled("ProcessPageHistoryHooks")) {
-            $config = $this->modules->getModuleConfigData("ProcessPageHistoryHooks");
+        if ($this->modules->isInstalled("ProcessChangelogHooks")) {
+            $config = $this->modules->getModuleConfigData("ProcessChangelogHooks");
             if (isset($config['operations'])) {
                 $this->operations = $config['operations'];
             } else {
-                $defaults = $this->modules->get("ProcessPageHistoryHooks")->getDefaultData();
+                $defaults = $this->modules->get("ProcessChangelogHooks")->getDefaultData();
                 $this->operations = $defaults['operations'];
             }
         }
@@ -124,7 +124,7 @@ class ProcessPageHistory extends Process implements ConfigurableModule {
         $field = $modules->get("InputfieldSelect");
         $field->name = "row_limit";
         $field->label = __("Row Limit");
-        $field->description = __("Number of history rows visible at once");
+        $field->description = __("Number of rows visible at once");
         $field->required = true;
         $field->addOptions(array(25 => '25', 50 => '50', 75 => '75', 100 => '100'));
         $field->value = $data['row_limit'];
@@ -164,7 +164,7 @@ class ProcessPageHistory extends Process implements ConfigurableModule {
         // setup admin data table
         $table = $this->modules->get("MarkupAdminDataTable");
         $table->setEncodeEntities(false);
-        $table->setClass('history');
+        $table->setClass('changelog');
         $table->headerRow(array(
                 __('User'),
                 __('When'),
@@ -266,7 +266,7 @@ class ProcessPageHistory extends Process implements ConfigurableModule {
         // if less than two matches were found, disable table sorting
         if ($total < 2) $table->setSortable(false);
 
-        // fetch history rows from database
+        // fetch rows from database
         $sql = "SELECT *
                 FROM " . self::TABLE_NAME . " 
                 $where 
@@ -355,7 +355,7 @@ class ProcessPageHistory extends Process implements ConfigurableModule {
 
             $data[] = "<strong>$operation_i18n</strong> $target";
 
-            // link for removing individual history row
+            // link for removing individual row
             $data[] = "<a href='./delete/?id={$row['id']}' class='remove'>" . __("remove?") . "</a>";
 
             // more details about page in question
@@ -402,7 +402,7 @@ class ProcessPageHistory extends Process implements ConfigurableModule {
     }
 
     /**
-     * Render human readable view of history row details
+     * Render human readable view of row details
      *
      * @param string $operation
      * @param array $details
@@ -510,10 +510,10 @@ class ProcessPageHistory extends Process implements ConfigurableModule {
         // Date range
         $disabled_title = __("Not relevant in this context");
         $date_from = ($this->input->get->date_from) ? date('d.m.Y', strtotime($this->input->get->date_from)) : '';
-        $markup .= "<input type='text' value='$date_from' size='10' data-maxdate='+0D' data-dateformat='dd.mm.yy' name='date_from' data-disabled-title='$disabled_title' class='history-datepicker' />";
+        $markup .= "<input type='text' value='$date_from' size='10' data-maxdate='+0D' data-dateformat='dd.mm.yy' name='date_from' data-disabled-title='$disabled_title' class='changelog-datepicker' />";
         $markup .= " .. ";
         $date_until = ($this->input->get->date_until) ? date('d.m.Y', strtotime($this->input->get->date_until)) : '';
-        $markup .= "<input type='text' value='$date_until' size='10' data-maxdate='+0D' data-dateformat='dd.mm.yy' name='date_until' class='history-datepicker' />";
+        $markup .= "<input type='text' value='$date_until' size='10' data-maxdate='+0D' data-dateformat='dd.mm.yy' name='date_until' class='changelog-datepicker' />";
 
         $markup .= "</form>";
 
@@ -525,7 +525,7 @@ class ProcessPageHistory extends Process implements ConfigurableModule {
      * Called only when this module is installed
      *
      * Creates new page with this Process module assigned and new database
-     * table for storing history data.
+     * table for storing data.
      *
      */
     public function ___install() {

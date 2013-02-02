@@ -1,11 +1,11 @@
 <?php
 
 /**
- * Hooks for Process Page History
+ * Hooks for Process Changelog
  *
- * This module inserts hooks required by Process Page History module and
- * handles saving data to related database table. Separated from main module
- * to keep ProcessWire from autoloading as much unnecessary code as possible.
+ * This module inserts hooks required by Process Changelog module and handles
+ * saving data to related database table. Separated from main module to keep
+ * ProcessWire from autoloading as much unnecessary code as possible.
  * 
  * For detailed information, installation instructions etc. see README.md.
  *
@@ -19,7 +19,7 @@
  *
  */
  
-class ProcessPageHistoryHooks extends WireData implements Module, ConfigurableModule {
+class ProcessChangelogHooks extends WireData implements Module, ConfigurableModule {
 
     /**
      * Return information about this module (required)
@@ -28,14 +28,14 @@ class ProcessPageHistoryHooks extends WireData implements Module, ConfigurableMo
      */
     public static function getModuleInfo() {
         return array(
-            'title' => 'Page History Hooks',
-            'summary' => 'Hooks required by Process Page History for collecting data',
+            'title' => 'Changelog Hooks',
+            'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => '',
             'author' => 'Teppo Koivula',
             'version' => 100,
             'singular' => true,
             'autoload' => true,
-            'requires' => 'ProcessPageHistory'
+            'requires' => 'ProcessChangelog'
         ); 
     }
 
@@ -67,7 +67,7 @@ class ProcessPageHistoryHooks extends WireData implements Module, ConfigurableMo
      * Name of database table used by this module
      *
      */
-    const TABLE_NAME = 'process_page_history';
+    const TABLE_NAME = 'process_changelog';
 
     /**
      * Populate the default config data
@@ -118,14 +118,14 @@ class ProcessPageHistoryHooks extends WireData implements Module, ConfigurableMo
             ));
         $field->attr('value', $data['operations']);
         $field->description = __("You can choose which operations to keep track of here.");
-        $field->notes = __("Note that unchecking operations later won't remove rows containing them from database, but new rows won't be created and they won't be visible at history page anymore.");
+        $field->notes = __("Note that unchecking operations later won't remove rows containing them from database. Instead new rows of those types will no longer be created and existing ones won't be visible anymore.");
         $fields->add($field);
 
-        // for how long should history be retained?
+        // for how long should collected data be retained?
         $field = $modules->get("InputfieldSelect");
-        $field->name = "history_max_age";
-        $field->label = __("History max age");
-        $field->description = __("How long should we retain history?");
+        $field->name = "data_max_age";
+        $field->label = __("Data max age");
+        $field->description = __("For how long should we retain collected data?");
         if ($modules->isInstalled("LazyCron")) {
             $field->addOption('1 WEEK', __('1 week'));
             $field->addOption('2 WEEK', __('2 weeks'));
@@ -138,7 +138,7 @@ class ProcessPageHistoryHooks extends WireData implements Module, ConfigurableMo
         } else {
             $field->notes = __("Automatic cleanup requires LazyCron module, which isn't currently installed.");
         }
-        if (isset($data['history_max_age'])) $field->value = $data['history_max_age'];
+        if (isset($data['data_max_age'])) $field->value = $data['data_max_age'];
         $fields->add($field);
 
         return $fields;
@@ -152,7 +152,7 @@ class ProcessPageHistoryHooks extends WireData implements Module, ConfigurableMo
      */
     public function init() {
 
-        // remove expired history rows daily
+        // remove expired rows daily
         $this->addHook("LazyCron::everyDay", $this, 'cleanup');
 
 		// add hooks that gather information and trigger insert
@@ -174,9 +174,9 @@ class ProcessPageHistoryHooks extends WireData implements Module, ConfigurableMo
      */
     public function cleanup() {
 
-        if (!$this->history_max_age) return;
+        if (!$this->data_max_age) return;
 
-        $interval = $this->db->escape_string($this->history_max_age);
+        $interval = $this->db->escape_string($this->data_max_age);
         $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE timestamp < DATE_SUB(NOW(), INTERVAL $interval)";
         $this->db->query($sql);
 
@@ -288,7 +288,7 @@ class ProcessPageHistoryHooks extends WireData implements Module, ConfigurableMo
     }
 
     /**
-     * Insert history row into database
+     * Insert row into database
      *
      * @param string $operation
      * @param int $pages_id
@@ -329,8 +329,8 @@ class ProcessPageHistoryHooks extends WireData implements Module, ConfigurableMo
      * @param HookEvent $event
      */
     public function hookExecute(HookEvent $event) {
-        if ($this->page->process !== "ProcessPageHistory") return;
-        $this->config->scripts->add($this->config->urls->ProcessPageHistory."js/script.js?v=100"); 
+        if ($this->page->process !== "ProcessChangelog") return;
+        $this->config->scripts->add($this->config->urls->ProcessChangelog."js/script.js?v=100"); 
         $this->config->styles->add($this->config->urls->InputfieldDatetime."InputfieldDatetime.css?v=103");
     }
 
