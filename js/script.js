@@ -37,8 +37,7 @@ $(document).ready(function() {
             $.get($(this).attr('href'), function(data) {
                 data = $.parseJSON(data);
                 if (data && !data.error) {
-                    $($link).parents('tr:first').addClass('removable').prev('tr').addClass('removable');
-                    $('tr.removable').fadeOut('500');
+                    $($link).parents('tr:first').fadeOut('500');
                 } else {
                     alert(remove_failed);
                 }
