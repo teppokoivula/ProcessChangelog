@@ -347,7 +347,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
             // add either edit link or deleted note
             if (!$page->id) $target .= " <em>(" . __("deleted") . ")</em>";
-            else $target .= " &nbsp; <a class='edit' href='../../page/edit/?id={$page->id}'>" . __("edit page") . "</a></em>";
+            else $target .= " &nbsp; <a class='edit' href='{$this->config->urls->admin}page/edit/?id={$page->id}'>" . __("edit page") . "</a></em>";
 
             // phrase "deleted" is used in multiple contexts, define which one to use
             if ($operation == "deleted") $operation_i18n = _x($operation, 'operation');
