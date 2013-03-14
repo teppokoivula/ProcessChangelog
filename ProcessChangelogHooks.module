@@ -222,7 +222,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             if ($page->isChanged()) {
                 $fields_edited = '';
                 foreach ($page->template->fields as $field) {
-                    if ($page->isChanged($field)) {
+                    if ($page->isChanged($field->name)) {
                         if ($fields_edited) $fields_edited .= ", ";
                         $fields_edited .= $field->name;
                     }
