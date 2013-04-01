@@ -367,20 +367,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         }
 
         // pager markup
-        $get = "";
-        foreach ($this->input->get as $key => $value) {
-            if ($key != "page" && $value != "") $get .= "&$key=$value";
-        }
-        $pager_pages = ceil($total/$limit)+1;
-        $pager_page = ($start/$limit)+1;
         $pager = "";
         if ($total > $limit) {
-            $pager .= "<ul class='MarkupPagerNav MarkupPagerNavCustom'>";
-            for ($i=1; $i<$pager_pages; ++$i) {
-                $pager_here = ($pager_page == $i) ? " class='MarkupPagerNavOn'" : "";
-                $pager .= "<li$pager_here><a href='./?page=$i$get'><span>$i</span></a></li>";
-            }
-            $pager .= "</ul>";
+            $pager_links = 20;
+            $pager_page = (int) $start/$limit+1;
+            $pager_pages = ceil($total/$limit);
+            $pager = $this->renderPager($pager_links, $pager_page, $pager_pages);
         }
 
         // UI translations
@@ -398,6 +390,65 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // return admin data table markup, pager and translations
         return $this->renderFilters().$info.$table->render().$pager.$translations;
+
+    }
+
+    /**
+     * Render markup for pager
+     *
+     * @param int $links Number of pager links visible at once
+     * @param int $page Identifies currently active pager item
+     * @param int $pages Number of total pager items available
+     * @return string
+     */
+    private function renderPager($links, $page, $pages) {
+
+        if ($pages < 2) return;
+
+        // convert GET params to string
+        $get = "";
+        foreach ($this->input->get as $key => $value) {
+            if ($key != "page" && $value != "") {
+                $get .= "&".urlencode($key)."=".urlencode($value);
+            }
+        }
+
+        // calculate start and end points
+        $start = 1;
+        $end = $pages;
+        if ($end > $links) {
+            $start = (int) $page-$links/2;
+            if ($start < 1) $start=1;
+            $end = $start+($links-1);
+            if ($end > $pages) $end = $pages;
+            if ($end-$page < (int) $links/2-1) { 
+                $start -= ((int) $links/2)-($end-$page);
+                if ($start < 1) $start=1;
+            }
+        }
+
+        // generate markup
+        $out = "<ul class='MarkupPagerNav MarkupPagerNavCustom'>";
+        if ($start > 1) {
+            $out .= "<li><a href='./?page=1$get'><span>1</span></a></li>";
+            if ($start > 2) {
+                $out .= "<li class='MarkupPagerNavSeparator'>&hellip;</li>";
+            }
+        }
+        for ($i = $start; $i<=$pages; ++$i) {
+            $here = ($page == $i) ? " class='MarkupPagerNavOn'" : "";
+            $out .= "<li$here><a href='./?page=$i$get'><span>$i</span></a></li>";
+            if ($pages > $links && $i == $end && $i < $pages) {
+                if ($pages-$i > 1) {
+                    $out .= "<li class='MarkupPagerNavSeparator'>&hellip;</li>";
+                }
+                $i = $pages-1;
+                if ($i < $end) $i = $end+1;
+            }
+        }
+        $out .= "</ul>";
+        
+        return $out;
 
     }
 
