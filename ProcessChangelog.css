@@ -25,6 +25,11 @@ form#filters .changelog-datepicker.disabled {
     opacity: 0.5;
 }
 
+#ui-datepicker-div {
+    font-size: 12px;
+    line-height: 14px;
+}
+
 /* --- changelog table --- */
 
 table.changelog em {

@@ -32,7 +32,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 101,
+            'version' => 102,
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -162,9 +162,6 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 		$this->pages->addHook('deleted', $this, 'logPageEvent'); 
 		$this->pages->addHook('saveReady', $this, 'logPageEvent'); 
 		$this->pages->addHookAfter('saveReady', $this, 'logPageEvent'); 
-
-        // hook after ProcessController::execute to include a JavaScript file (admin only)
-        $this->addHookAfter('ProcessController::execute', $this, 'hookExecute');
 
     }
 
@@ -320,18 +317,4 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         
     }
     
-    /**
-     * This function is executed before page markup has been created
-     *
-     * Used for injecting custom JavaScript file and Datepicker plugin to
-     * admin page. Custom JS file contains mostly UI level additions.
-     *
-     * @param HookEvent $event
-     */
-    public function hookExecute(HookEvent $event) {
-        if ($this->page->process !== "ProcessChangelog") return;
-        $this->config->scripts->add($this->config->urls->ProcessChangelog."js/script.js?v=100"); 
-        $this->config->styles->add($this->config->urls->InputfieldDatetime."InputfieldDatetime.css?v=103");
-    }
-
 }
