@@ -50,7 +50,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         return array(
             'row_limit' => 25,
             'row_label' => 'name',
-            'date_format' => 'Y-m-d H:i:s'
+            'date_format' => 'Y-m-d H:i:s',
+            'system_pages' => 'show'
         );
     }
     
@@ -143,6 +144,19 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $field->value = $data['row_label'];
         $fields->add($field);
 
+        // what is the default behavior for system pages?
+        $field = $modules->get("InputfieldSelect");
+        $field->name = "system_pages";
+        $field->label = __("System pages");
+        $field->description = __("What is the default filter for system pages (such as users, roles, languages, etc.) on the changelog?");
+        $field->required = true;
+        $field->addOptions(array(
+                'show' => 'Show them by default',
+                'hide' => 'Hide them by default'
+            ));
+        $field->value = $data['system_pages'];
+        $fields->add($field);
+
         return $fields;
     }
 
@@ -179,6 +193,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // apply filters
         $filters = array();
+        $join = array();
         $allowed_keys = array(
             "id",
             "user_id",
@@ -187,7 +202,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             "operation",
             "when",
             "date_from",
-            "date_until"
+            "date_until",
+            "system_pages"
         );
         $allowed_intervals = array(
             "1 DAY",
@@ -195,6 +211,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             "1 MONTH",
             "1 YEAR"
         );
+        // default value (taken from the config option)
+        if ( ! $this->input->get->system_pages ) {
+            var_dump('defaulting');
+            $this->input->get->system_pages = $this->system_pages;
+        }
         foreach ($this->input->get as $key => $value) {
             if (in_array($key, $allowed_keys) && $value != "") {
                 $value = $this->db->real_escape_string($value);
@@ -220,6 +241,13 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                             $time = "23:59";
                         }
                         $filters[$key] = "timestamp $operator '$value $time'";
+                    }
+                } else if ($key == "system_pages") {
+                    if ( $value == "hide" ) {
+                        // to hide the "system pages", I hide the pages with a template with a value in "flags" column
+                        $join[] = 'JOIN pages ON '.self::TABLE_NAME.'.pages_id = pages.id';
+                        $join[] = 'JOIN templates ON pages.templates_id = templates.id';
+                        $filters[] = sprintf("templates.flags = 0");
                     }
                 } else {
                     if (strpos($value, "!") === 0) {
@@ -253,10 +281,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $where = substr($where, 0, strlen($where)-4);
         }
 
+        $join = implode("\n", $join);
+
         // variables required by pager
         $start = 0;
         $limit = $this->row_limit;
-        $total = $this->db->query("SELECT count(*) FROM " . self::TABLE_NAME . $where)->fetch_row();
+        $total = $this->db->query("SELECT count(*) FROM " . self::TABLE_NAME . ' '.$join. ' '.$where)->fetch_row();
         $total = $total[0];
         if ($total > $limit) {
             $start = ($this->input->get->page) ? (int) ($this->input->get->page-1)*$limit : 0;
@@ -267,10 +297,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         if ($total < 2) $table->setSortable(false);
 
         // fetch rows from database
-        $sql = "SELECT *
+        $sql = "SELECT ".self::TABLE_NAME.".*
                 FROM " . self::TABLE_NAME . " 
+                $join
                 $where 
-                ORDER BY timestamp DESC, id DESC
+                ORDER BY timestamp DESC, ".self::TABLE_NAME.".id DESC
                 LIMIT $start, $limit";
         $result = $this->db->query($sql);
 
@@ -565,6 +596,13 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $markup .= " .. ";
         $date_until = ($this->input->get->date_until) ? date('d.m.Y', strtotime($this->input->get->date_until)) : '';
         $markup .= "<input type='text' value='$date_until' size='10' data-maxdate='+0D' data-dateformat='dd.mm.yy' name='date_until' class='changelog-datepicker' />";
+
+        // Show or hide system pages
+        $selected = array($this->input->get->system_pages => ' selected = "selected"');
+        $markup .= '<select name="system_pages">';
+        $markup .= '<option value="show"'.$selected['show'].'>'.__('include system pages').'</option>';
+        $markup .= '<option value="hide"'.$selected['hide'].'>'.__('hide system pages').'</option>';
+        $markup .= '</select>';
 
         $markup .= "</form>";
 
