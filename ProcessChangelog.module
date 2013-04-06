@@ -284,16 +284,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 if ($key != "data") $row[$key] = htmlentities($value);
             }
 
-            // basic user information; if user_id is set user exists or at least existed at
-            // the time of action (still need to check if that's currently true though)
-            if ($row['user_id']) {
-                $user = $this->users->get($row['user_id']);
-                if ($user->id) $data[$user->name] = $this->config->urls->admin."access/users/edit/?id=".$user->id;
-                else $data[] = $row['username'] . " <em>(" . __("deleted") . ")</em>";
-            } else {
-                // @todo check if API calls get logged, otherwise remove this
-                $data[] = "<em>(" . __("nonexistent") . ")</em>";
-            }
+            // check if user still exists
+            $user = $this->users->get($row['user_id']);
+            if (!$user->id) $data[] = $row['username'] . " <em>(" . __("deleted") . ")</em>";
+            else $data[$user->name] = $this->config->urls->admin."access/users/edit/?id=".$user->id;
 
             // timestamp (raw timestamp is hidden and only included to allow proper ordering with JavaScript)
             $date = ($date_format) ? date($date_format, strtotime($row['timestamp'])) : $row['timestamp'];
