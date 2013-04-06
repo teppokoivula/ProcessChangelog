@@ -31,7 +31,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 104,
+            'version' => 105,
             'singular' => true,
             'autoload' => false,
             'installs' => 'ProcessChangelogHooks'
@@ -205,11 +205,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 }
                 if ($key == "data") {
                     $filters[] = "$key LIKE '%$value%'";
-                } else if ($key == "when") {
+                } elseif ($key == "when") {
                     if (in_array($value, $allowed_intervals)) {
                         $filters['when'] = "DATE_SUB(CURDATE(), INTERVAL $value) <= timestamp";
                     }
-                } else if ($key == "date_from" || $key == "date_until") {
+                } elseif ($key == "date_from" || $key == "date_until") {
                     if (!isset($filters['when'])) {
                         $value = date("Y-m-d", strtotime($value));
                         if ($key == "date_from") {
@@ -310,48 +310,44 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             // __('published')
             // __('unpublished')
 
-            // variables we're going to need later on
+            // variables we're going to need later
             $target = "";
             $operation = $row['operation'];
             $page = $this->pages->get($row['pages_id']);
             $details = json_decode($row['data'], true);
+            $key = $this->row_label == 'url' ? 'URL' : 'page name';
             
             // start putting together human-readable version of what happened
-            if ($operation == "renamed") {
-                if ($this->row_label == "url") {
-                    $target .= $details['Previous URL'] . " ";
-                    $target .= "<strong>" . __("as") . "</strong> ";
-                    $target .= $details['Current URL'];
-                } else {
-                    $target .= $details['Previous page name'] . " ";
-                    $target .= "<strong>" . __("as") . "</strong> ";
-                    $target .= $details['Current page name'];
-                }
-            } else if ($operation == "trashed") {
-                if ($this->row_label == "url") $target .= $details['Previous URL'];
-                else $target .= $details['Previous page name'];
-            } else if ($operation == "restored") {
-                if ($this->row_label == "url") $target .= $details['Current URL'];
-                else $target .= $details['Current page name'];
-            } else if (
-                ($this->row_label == "name" && isset($details['Page name'])) || 
-                ($this->row_label == "url" && isset($details['Page URL']))
-            ) {
-                if ($this->row_label == "url") $target .= $details['Page URL'];
-                else $target .= $details['Page name'];
-            } else if ($this->row_label == "name" && isset($details['Current page name'])) {
-                $target .= $details['Current page name'];
-            } else if ($this->row_label == "url" && isset($details['Current URL'])) {
-                $target .= $details['Current URL'];
+            switch ($operation) {
+                case 'renamed':
+                    $target .= $details["Previous $key"] 
+                             . " <strong>" . __("as") . "</strong> " 
+                             . $details["Current $key"];
+                    break;
+                case 'trashed':
+                    $target .= $details["Previous $key"];
+                    break;
+                case 'restored':
+                    $target .= $details["Current $key"];
+                    break;
+                default:
+                    if (isset($details[($key == "URL" ? "Page URL" : ucfirst($key)]))) {
+                        $target .= $details[($key == "URL" ? "Page URL" : ucfirst($key))];
+                    } elseif (isset($details["Current $key"])) {
+                        $target .= $details["Current $key"];
+                    }
             }
 
             // add either edit link or deleted note
-            if (!$page->id) $target .= " <em>(" . __("deleted") . ")</em>";
-            else $target .= " &nbsp; <a class='edit' href='{$this->config->urls->admin}page/edit/?id={$page->id}'>" . __("edit page") . "</a></em>";
+            if ($page->id) {
+                $href = "{$this->config->urls->admin}page/edit/?id={$page->id}";
+                $link = " &nbsp; <a class='edit' href='$href'>" . __("edit page") . "</a></em>";
+            }
+            $target .= $page->id ? $link : " <em>(" . __("deleted") . ")</em>";
 
-            // phrase "deleted" is used in multiple contexts, define which one to use
-            if ($operation == "deleted") $operation_i18n = _x($operation, 'operation');
-            else $operation_i18n = __($operation);
+            // "deleted" is only phrase used in multiple contexts
+            if ($operation != "deleted") $operation_i18n = __($operation);
+            else $operation_i18n = _x($operation, 'operation');
 
             $data[] = "<strong>$operation_i18n</strong> $target";
 
@@ -359,8 +355,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $data[] = "<a href='./delete/?id={$row['id']}' class='remove'>" . __("remove?") . "</a>";
 
             // more details about page in question
-            if ($details) $data[] = $this->renderDetails($operation, $details);
-            else $data[] = __("No data available.");
+            $data[] = $details ? $this->renderDetails($operation, $details) : __("No data available.");
 
             $table->row($data);
             

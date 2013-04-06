@@ -8,20 +8,20 @@ $(document).ready(function() {
                 .addClass('details')
                 .wrapInner('<span></span>')
                 .find('span')
-                    .after('<a href="#" class="toggle-more">'+more+' <b>&or;</b></a>');
+                    .after('<a href="#" class="toggle-more">'+more+' <small>&or;</small></a>');
     });
     // more/less functionality
     $('table.changelog th:eq(4)').css('width', '100px');
     $('table.changelog td.details a').toggle(function() {
         $(this)
-            .html(less + ' <b>&and;</b>')
+            .html(less + ' <small>&and;</small>')
             .parents('tr:first')
                 .addClass('open')
                 .after('<tr class="more '+$(this).prev('span').find('.details').attr('class')+'"><td colspan="6"><div>'+$(this).prev('span').html()+'</div></td></tr>');
         return false;
     }, function() {
         $(this)
-            .html(more + ' <b>&or;</b>')
+            .html(more + ' <small>&or;</small>')
             .parents('tr:first')
                 .removeClass('open')
                 .next('tr.more')
