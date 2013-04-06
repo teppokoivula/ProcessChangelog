@@ -213,7 +213,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         );
         // default value (taken from the config option)
         if ( ! $this->input->get->system_pages ) {
-            var_dump('defaulting');
             $this->input->get->system_pages = $this->system_pages;
         }
         foreach ($this->input->get as $key => $value) {
