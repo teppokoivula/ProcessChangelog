@@ -331,7 +331,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                     $target .= $details["Current $key"];
                     break;
                 default:
-                    if (isset($details[($key == "URL" ? "Page URL" : ucfirst($key)]))) {
+                    if (isset($details[($key == "URL" ? "Page URL" : ucfirst($key))])) {
                         $target .= $details[($key == "URL" ? "Page URL" : ucfirst($key))];
                     } elseif (isset($details["Current $key"])) {
                         $target .= $details["Current $key"];
