@@ -38,19 +38,52 @@ table.changelog em {
 
 table.changelog strong {
     color: #fff;
-    margin: 0 3px;
-    padding: 3px 5px;
+    padding: 0 5px;
+    margin: 0 3px 0 0;
     border-radius: 3px;
     background: #6195ba;
+    display: inline-block;
     text-shadow: 0 1px 0 rgba(0,0,0,0.2);
+}
+
+table.changelog strong.template {
+    background: #dd2680;
+}
+
+table.changelog strong.deleted {
+    color: #c0c0c0;
+    text-shadow: none;
+    background: transparent;
+}
+
+table.changelog b.icon {
+    width: 10px;
+    height: 10px;
+    cursor: help;
+    margin-left: 0.3em;
+    display: inline-block;
+    background-repeat: no-repeat;
+    background-image: url('img/icons.png');
+}
+
+table.changelog b.icon.system {
+    background-position: 0 0;
 }
 
 table.changelog small {
     font-size: 0.65em;
 }
 
+table.changelog tr {
+    line-height: 2em;
+}
+
 table.changelog tr.open td {
     border-bottom: 0;
+}
+
+table.changelog tr.more tr {
+    line-height: 1.75em;
 }
 
 table.changelog tr.more td {
