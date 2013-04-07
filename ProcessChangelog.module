@@ -31,7 +31,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 106,
+            'version' => 107,
             'singular' => true,
             'autoload' => false,
             'installs' => 'ProcessChangelogHooks'
@@ -514,60 +514,96 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      */
     private function renderFilters() {
 
-        $markup = "<form id='filters'>";
+        $markup = "";
 
         // Action types
-        $operation = $this->db->real_escape_string($this->input->get->operation);
-        $markup .= "<select name='operation'>";
-        $markup .= "<option value=''>" . __("All operations") . "</option>";
-        foreach ($this->operations as $item) {
-            // phrase "deleted" is used in multiple contexts, define which one to use
-            if ($item == "deleted") $item_i18n = _x($item, 'operation');
-            else $item_i18n = __($item);
-            $selected = ($operation == $item) ? " selected='selected'" : "";
-            $markup .= "<option value='$item'$selected>$item_i18n</option>";
-        }
-        $markup .= "</select>";
+        $options = array_merge(array(__("All operations")), $this->operations);
+        $markup .= $this->renderSelect('operation', $options, true);
 
         // Username
-        $username = $this->input->get->username;
+        $options = array();
+        $operation = $this->db->real_escape_string($this->input->get->operation);
         $where = ($operation) ? " WHERE operation = '$operation'" : "";
-        $sql = "SELECT DISTINCT username FROM " . self::TABLE_NAME . "$where ORDER BY username DESC";
+        $sql = "SELECT DISTINCT username 
+                FROM " . self::TABLE_NAME . "
+                $where 
+                ORDER BY username DESC";
         $result = $this->db->query($sql);
-        $usernames = (!$result->num_rows || $result->num_rows > 1) ? "<option value=''>" . __("by any user") . "</option>" : "";
-        while($row = $result->fetch_assoc()) {
-            $selected = ($username == $row['username']) ? " selected='selected'" : "";
-            $usernames .= "<option value='{$row['username']}'$selected>" . sprintf(__("by %s"), $row['username']) . "</option>"; // by %s // %s will be replaced run-time by username
+        if (!$result->num_rows || $result->num_rows > 1) {
+            $options[] = __("by any user");
         }
-        $markup .= "<select name='username'>$usernames</select>";
+        while($row = $result->fetch_assoc()) {
+            $key = sprintf(__("by %s"), $row['username']); // by %s // %s will be replaced run-time by username
+            $options[$key] = $row['username'];
+        }
+        $markup .= $this->renderSelect('username', $options);
 
         // Date options
-        $markup .= "<select name='when'>";
-        $markup .= "<option value=''>" . __("whenever") . "</option>";
-        $selected = ($this->input->get->when == "1 DAY") ? " selected='selected'" : "";
-        $markup .= "<option$selected value='1 DAY'>" . __("within a day") . "</option>";
-        $selected = ($this->input->get->when == "1 WEEK") ? " selected='selected'" : "";
-        $markup .= "<option$selected value='1 WEEK'>" . __("within a week") . "</option>";
-        $selected = ($this->input->get->when == "1 MONTH") ? " selected='selected'" : "";
-        $markup .= "<option$selected value='1 MONTH'>" . __("within a month") . "</option>";
-        $selected = ($this->input->get->when == "1 YEAR") ? " selected='selected'" : "";
-        $markup .= "<option$selected value='1 YEAR'>" . __("within a year") . "</option>";
-        $selected = ($this->input->get->when == "between") ? " selected='selected'" : "";
-        $markup .= "<option$selected value='between'>" . __("between") . "</option>";
-        $markup .= "</select>";
+        $options = array(
+            __("whenever"),
+            __("within a day") => '1 DAY',
+            __("within a week") => '1 WEEK',
+            __("within a month") => '1 MONTH',
+            __("within a year") => '1 YEAR',
+            __("between")
+        );
+        $markup .= $this->renderSelect('when', $options);
 
         // Date range
         $disabled_title = __("Not relevant in this context");
         $date_from = ($this->input->get->date_from) ? date('d.m.Y', strtotime($this->input->get->date_from)) : '';
-        $markup .= "<input type='text' value='$date_from' size='10' data-maxdate='+0D' data-dateformat='dd.mm.yy' name='date_from' data-disabled-title='$disabled_title' class='changelog-datepicker' />";
-        $markup .= " .. ";
         $date_until = ($this->input->get->date_until) ? date('d.m.Y', strtotime($this->input->get->date_until)) : '';
-        $markup .= "<input type='text' value='$date_until' size='10' data-maxdate='+0D' data-dateformat='dd.mm.yy' name='date_until' class='changelog-datepicker' />";
+        $markup .= "<input type='text'"
+                 . " value='$date_from'"
+                 . " size='10'"
+                 . " data-maxdate='+0D'"
+                 . " data-dateformat='dd.mm.yy'"
+                 . " name='date_from'"
+                 . " data-disabled-title='$disabled_title'"
+                 . " class='changelog-datepicker'"
+                 . " />"
+                 . " .. "
+                 . "<input type='text'"
+                 . " value='$date_until'"
+                 . " size='10'"
+                 . " data-maxdate='+0D'"
+                 . " data-dateformat='dd.mm.yy'"
+                 . " name='date_until'"
+                 . " class='changelog-datepicker'"
+                 . " />";
 
-        $markup .= "</form>";
-
-        return $markup;
+        return "<form id='filters'>$markup</form>";
         
+    }
+
+    /**
+     * Render markup for select element
+     *
+     * @param string name
+     * @param array $options
+     * @param boolean $translate
+     * @return string
+     */
+    private function renderSelect($name, array $options, $translate) {
+        
+        if (!$name) return;
+
+        $markup = "";
+
+        foreach ($options as $key => $option) {
+            $value = $key ? $option : '';
+            $text = !is_numeric($key) ? $key : $option;
+            if ($translate) {
+                // phrase "deleted" is used in multiple contexts
+                if ($text == "deleted") $text = _x($text, $name);
+                else $text = __($text);
+            }
+            $selected = ($this->input->get->$name == $value) ? ' selected="selected"' : '';
+            $markup .= "<option$selected value='$value'>$text</option>";
+        }
+
+        return "<select name='$name'>$markup</select>";
+
     }
 
     /**
