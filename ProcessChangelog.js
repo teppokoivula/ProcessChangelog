@@ -59,7 +59,8 @@ $(document).ready(function() {
         this.form.submit();
     });
     // hide nonrelevant options in filter form
-    if ($('form#filters select[name=when] option[selected]').attr('value') != "between") {
+    $when = $('form#filters select[name=when]');
+    if ($when.length && $when.attr('value') != "between") {
         $('form#filters .changelog-datepicker')
             .addClass('disabled')
             .attr('title', $('form#filters input[name=date_from]').attr('data-disabled-title'))
