@@ -250,7 +250,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // variables required by pager
         $start = 0;
         $limit = $this->row_limit;
-        $sql = "SELECT COUNT(*) FROM " . self::TABLE_NAME . " $joins $where";
+        $sql = "SELECT COUNT(*) FROM " . self::TABLE_NAME . " $where";
         $total = reset($this->db->query($sql)->fetch_row());
         if ($total > $limit) {
             if ($this->input->get->page) $start = ($this->input->get->page-1)*$limit;
