@@ -31,7 +31,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 107,
+            'version' => 108,
             'singular' => true,
             'autoload' => false,
             'installs' => 'ProcessChangelogHooks'
@@ -126,7 +126,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $field->label = __("Row Limit");
         $field->description = __("Number of rows visible at once");
         $field->required = true;
-        $field->addOptions(array(25 => '25', 50 => '50', 75 => '75', 100 => '100'));
+        $field->addOptions(array(
+            25 => '25', 
+            50 => '50', 
+            75 => '75', 
+            100 => '100'
+        ));
         $field->value = $data['row_limit'];
         $fields->add($field);
 
@@ -177,8 +182,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $defaults = self::getDefaultData();
         $date_format = ($this->date_format != $defaults['date_format']) ? $this->date_format : null;
 
-        // apply filters
-        $filters = array();
+        // build query
+        $where = array();
         $allowed_keys = array(
             "id",
             "user_id",
@@ -204,13 +209,13 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                     continue;
                 }
                 if ($key == "data") {
-                    $filters[] = "$key LIKE '%$value%'";
+                    $where[] = "$key LIKE '%$value%'";
                 } elseif ($key == "when") {
                     if (in_array($value, $allowed_intervals)) {
-                        $filters['when'] = "DATE_SUB(CURDATE(), INTERVAL $value) <= timestamp";
+                        $where['when'] = "DATE_SUB(CURDATE(), INTERVAL $value) <= timestamp";
                     }
                 } elseif ($key == "date_from" || $key == "date_until") {
-                    if (!isset($filters['when'])) {
+                    if (!isset($where['when'])) {
                         $value = date("Y-m-d", strtotime($value));
                         if ($key == "date_from") {
                             $operator = ">=";
@@ -219,16 +224,15 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                             $operator = "<=";
                             $time = "23:59";
                         }
-                        $filters[$key] = "timestamp $operator '$value $time'";
+                        $where[$key] = "timestamp $operator '$value $time'";
                     }
                 } else {
+                    $operator = "=";
                     if (strpos($value, "!") === 0) {
                         $value = substr($value, 1);
                         $operator = "!=";
-                    } else {
-                        $operator = "=";
                     }
-                    $filters[] = "$key $operator '$value'";
+                    $where[] = "$key $operator '$value'";
                 }
             }
         }
@@ -236,30 +240,20 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // make sure that only operations being currently logged are visible,
         // even after selecting "all operations"
         if (!$this->input->get->operation) {
-            $key = "operation";
-            $value = "";
-            foreach ($this->operations as $operation) {
-                if ($value) $value .= ",";
-                $value .= "'".$this->db->real_escape_string($operation)."'";
-            }
-            $filters[] = "$key IN($value)";
+            $value = $this->db->real_escape_string(implode(",", $this->operations));
+            $where[] = "operation IN('" . str_replace(",", "','", $value) . "')";
         }
 
         // if filters exist, put together where clause
-        $where = "";
-        if (count($filters)) {
-            $where = " WHERE";
-            foreach ($filters as $filter) $where .= " $filter AND";
-            $where = substr($where, 0, strlen($where)-4);
-        }
+        $where = $where ? " WHERE " . implode(" AND ", $where) : "";
 
         // variables required by pager
         $start = 0;
         $limit = $this->row_limit;
-        $total = $this->db->query("SELECT count(*) FROM " . self::TABLE_NAME . $where)->fetch_row();
-        $total = $total[0];
+        $sql = "SELECT COUNT(*) FROM " . self::TABLE_NAME . " $joins $where";
+        $total = reset($this->db->query($sql)->fetch_row());
         if ($total > $limit) {
-            $start = ($this->input->get->page) ? (int) ($this->input->get->page-1)*$limit : 0;
+            if ($this->input->get->page) $start = ($this->input->get->page-1)*$limit;
             if ($start > $total) $start = $total-$limit;
         }
 
@@ -267,7 +261,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         if ($total < 2) $table->setSortable(false);
 
         // fetch rows from database
-        $sql = "SELECT *
+        $sql = "SELECT " . self::TABLE_NAME . ".*
                 FROM " . self::TABLE_NAME . " 
                 $where 
                 ORDER BY timestamp DESC, id DESC
