@@ -31,7 +31,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 108,
+            'version' => 110,
             'singular' => true,
             'autoload' => false,
             'installs' => 'ProcessChangelogHooks'
@@ -50,7 +50,50 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         return array(
             'row_limit' => 25,
             'row_label' => 'name',
-            'date_format' => 'Y-m-d H:i:s'
+            'date_format' => 'Y-m-d H:i:s',
+            'visible_filters' => array(
+                'operation',
+                'username',
+                'when',
+                'date_range'
+            ),
+            'available_filters' => array(
+                'operation' => array(
+                    'label' => __("Operation"),
+                    'options' => array(__("All operations")),
+                    'translate' => true
+                ),
+                'template' => array(
+                    'label' => __("Template"),
+                    'options' => array()
+                ),
+                'flags' => array(
+                    'label' => __("Flags"),
+                    'options' => array(
+                        __("with any flags"),
+                        __("with system flag") => 'System',
+                        __("without system flag") => '!System'
+                    )
+                ),
+                'username' => array(
+                    'label' => __("Username"),
+                    'options' => array()
+                ),
+                'when' => array(
+                    'label' => __("When"),
+                    'options' => array(
+                        __("whenever"),
+                        __("within a day") => '1 DAY',
+                        __("within a week") => '1 WEEK',
+                        __("within a month") => '1 MONTH',
+                        __("within a year") => '1 YEAR'
+                    )
+                ),
+                'date_range' => array(
+                    'label' => __("Date range"),
+                    'options' => array()
+                )
+            )
         );
     }
     
@@ -87,10 +130,18 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 $this->operations = $defaults['operations'];
             }
         }
-        // default settings for current module
         foreach(self::getDefaultData() as $key => $value) {
+            if ($key == "available_filters") {
+                // construct list of operations (done here so that we have access to
+                // settings of ProcessChangelogHooks module.)
+                $value['operation']['options'] = array_merge(
+                    $value['operation']['options'], 
+                    $this->operations
+                );
+            }
             $this->$key = $value;
         }
+
     }
 
     /**
@@ -107,8 +158,21 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // since this is a static function, we can't use $this->modules, so get them from the global wire() function
         $modules = wire('modules');
 
-        // merge default config settings (custom values overwrite defaults)
+        // merge local default settings and settings from hooks module (custom values overwrite defaults)
+        if ($modules->isInstalled("ProcessChangelogHooks")) {
+            $config = $modules->getModuleConfigData("ProcessChangelogHooks");
+            if (isset($config['operations'])) {
+                $operations = $config['operations'];
+            } else {
+                $defaults = $modules->get("ProcessChangelogHooks")->getDefaultData();
+                $operations = $defaults['operations'];
+            }
+        }
         $defaults = self::getDefaultData();
+        $defaults['available_filters']['operation']['options'] = array_merge(
+            $defaults['available_filters']['operation']['options'],
+            $operations
+        );
         $data = array_merge($defaults, $data);
 
         // date format used
@@ -142,12 +206,59 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $field->description = __("Which field should be used as row label?");
         $field->required = true;
         $field->addOptions(array(
-                'name' => 'Page name',
-                'url' => 'Page URL'
-            ));
+            'name' => 'Page name',
+            'url' => 'Page URL'
+        ));
         $field->value = $data['row_label'];
         $fields->add($field);
 
+        // visibility settings, grouped together by fieldset
+        $fieldset_visibility = $modules->get("InputfieldFieldset");
+        $fieldset_visibility->label = __("Visibility settings");
+        $fieldset_visibility->collapsed = true;
+
+        // visible filters
+        $field = $modules->get("InputfieldCheckboxes");
+        $field->name = "visible_filters";
+        $field->label = __("Visible filters");
+        $field->notes = __("Unchecking all filters completely hides filters area.");
+        foreach ($data['available_filters'] as $name => $filter) {
+            $field->addOption($name, $filter['label']);
+        }
+        $field->value = $data['visible_filters'];
+        $fieldset_visibility->add($field);
+
+        // values for hidden filters
+        $fieldset = $modules->get("InputfieldFieldset");
+        $fieldset->label = __("Values for hidden filters");
+        $fieldset->notes = __("Filters not listed here are ignored when hidden.");
+        foreach ($data['available_filters'] as $name => $filter) {
+            if (!$filter['options']) continue;
+            $field = $modules->get("InputfieldSelect");
+            $field->name = 'default_for_' . $name;
+            $field->label = $filter['label'];
+            foreach ($filter['options'] as $key => $option) {
+                $value = $key ? $option : '';
+                $text = !is_numeric($key) ? $key : $option;
+                if ($filter['translate']) {
+                    if ($text == "deleted" && $name == "operation") {
+                        // "deleted" is used in multiple contexts
+                        $text = _x($text, $name);
+                    } else {
+                        $text = __($text);
+                    }
+                }
+                $field->addOption($value, $text);
+            }
+            if (isset($data['default_for_' . $name])) {
+                $field->value = $data['default_for_' . $name];
+            }
+            $fieldset->add($field);
+        }
+        $fieldset_visibility->add($fieldset);
+
+        $fields->add($fieldset_visibility);
+        
         return $fields;
     }
 
@@ -157,6 +268,19 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      */
     public function init() {
         parent::init();
+        if (count(array_intersect(array("operation", "template"), $this->visible_filters)) == 2) {
+            $available_filters = $this->available_filters;
+            $available_filters['operation']['options'] = array_merge(
+                array(__("All operations on")),
+                $this->operations
+            );
+            $this->available_filters = $available_filters;
+        }
+        // take values for hidden filters into account
+        $hidden_filters = array_diff(array_keys($this->available_filters), $this->visible_filters);
+        foreach ($hidden_filters as $filter) {
+            $this->input->get->$filter = $this->get("default_for_$filter");
+        }
     }
 
     /**
@@ -183,9 +307,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $date_format = ($this->date_format != $defaults['date_format']) ? $this->date_format : null;
 
         // build query
+        $joins = array();
         $where = array();
         $allowed_keys = array(
             "id",
+            "template",
+            "flags",
             "user_id",
             "username",
             "pages_id",
@@ -194,45 +321,63 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             "date_from",
             "date_until"
         );
-        $allowed_intervals = array(
-            "1 DAY",
-            "1 WEEK",
-            "1 MONTH",
-            "1 YEAR"
+        $allowed_intervals = array_values(
+            $this->available_filters['when']['options']
         );
         foreach ($this->input->get as $key => $value) {
-            if (in_array($key, $allowed_keys) && $value != "") {
+            if ($value && in_array($key, $allowed_keys)) {
+                $operator = "=";
                 $value = $this->db->real_escape_string($value);
-                if ($key == "operation" && !in_array($value, $this->operations)) {
-                    // only operations being currently logged can be used here
-                    unset($this->input->get->$key);
-                    continue;
+                if (strpos($value, "!") === 0) {
+                    $operator = "!=";
+                    $value = substr($value, 1);
                 }
-                if ($key == "data") {
-                    $where[] = "$key LIKE '%$value%'";
-                } elseif ($key == "when") {
-                    if (in_array($value, $allowed_intervals)) {
-                        $where['when'] = "DATE_SUB(CURDATE(), INTERVAL $value) <= timestamp";
-                    }
-                } elseif ($key == "date_from" || $key == "date_until") {
-                    if (!isset($where['when'])) {
-                        $value = date("Y-m-d", strtotime($value));
-                        if ($key == "date_from") {
-                            $operator = ">=";
-                            $time = "00:00";
-                        } else {
+                switch ($key) {
+                    case "data":
+                        $where[] = "$key LIKE '%$value%'";
+                        break;
+                    case "when":
+                        if (!isset($where['date_from']) && !isset($where['date_until']) && in_array($value, $allowed_intervals)) {
+                            $where[$key] = "DATE_SUB(CURDATE(), INTERVAL $value) <= timestamp";
+                        }
+                        break;
+                    case "date_from":
+                    case "date_until":
+                        if (!isset($where['when'])) {
+                            $value = date("Y-m-d", strtotime($value));
                             $operator = "<=";
                             $time = "23:59";
+                            if ($key == "date_from") {
+                                $operator = ">=";
+                                $time = "00:00";
+                            }
+                            $where[$key] = "timestamp $operator '$value $time'";
                         }
-                        $where[$key] = "timestamp $operator '$value $time'";
-                    }
-                } else {
-                    $operator = "=";
-                    if (strpos($value, "!") === 0) {
-                        $value = substr($value, 1);
-                        $operator = "!=";
-                    }
-                    $where[] = "$key $operator '$value'";
+                        break;
+                    case "template":
+                    case "flags":
+                        $join = "pages ON pages.id = " . self::TABLE_NAME . ".pages_id";
+                        if (!in_array($join, $joins)) $joins[] = $join;
+                        if ($key == "flags") {
+                            $joins[] = "templates ON templates.id = pages.templates_id";
+                            $where[] = "templates.flags $operator " . Template::flagSystem;
+                        } else {
+                            $template = $this->sanitizer->pageName($value);
+                            $templates_id = $this->templates->get($template)->id;
+                            if ($templates_id) {
+                                $where[] = "pages.templates_id $operator " . $templates_id;
+                            } else {
+                                throw new WireException(sprintf(__("Template not found: %s"), $template));
+                            }
+                        }
+                        break;
+                    case "operation":
+                        if (!in_array($value, $this->operations)) {
+                            unset($this->input->get->$key);
+                            break;
+                        }
+                    default:
+                        $where[] = "$key $operator '$value'";
                 }
             }
         }
@@ -244,13 +389,14 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $where[] = "operation IN('" . str_replace(",", "','", $value) . "')";
         }
 
-        // if filters exist, put together where clause
-        $where = $where ? " WHERE " . implode(" AND ", $where) : "";
-
+        // put together where clause and join syntax
+        $where = $where ? "WHERE " . implode(" AND ", $where) : "";
+        $joins = $joins ? "JOIN " . implode(" JOIN ", $joins) : "";
+        
         // variables required by pager
         $start = 0;
         $limit = $this->row_limit;
-        $sql = "SELECT COUNT(*) FROM " . self::TABLE_NAME . " $where";
+        $sql = "SELECT COUNT(*) FROM " . self::TABLE_NAME . " $joins $where";
         $total = reset($this->db->query($sql)->fetch_row());
         if ($total > $limit) {
             if ($this->input->get->page) $start = ($this->input->get->page-1)*$limit;
@@ -263,12 +409,13 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // fetch rows from database
         $sql = "SELECT " . self::TABLE_NAME . ".*
                 FROM " . self::TABLE_NAME . " 
+                $joins
                 $where 
                 ORDER BY timestamp DESC, id DESC
                 LIMIT $start, $limit";
         $result = $this->db->query($sql);
 
-        while($row = $result->fetch_assoc()) {
+        while ($row = $result->fetch_assoc()) {
 
             // empty container
             $data = array();
@@ -330,23 +477,23 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 // edit link
                 $href = "{$this->config->urls->admin}page/edit/?id={$page->id}";
                 $target .= " &nbsp; <a class='edit' href='$href'>" . __("edit page") . "</a></em>";
-                // type (template)
-                $type_icons = "";
+                // template
+                $template_icons = "";
                 if ($page->template->flags & Template::flagSystem) {
-                    $type_icons .= "<b class='icon system' title='" . __("System template") . "'></b>";
+                    $template_icons .= "<b class='icon system' title='" . __("System template") . "'></b>";
                 }
-                $type_label = $page->template->label ? $page->template->label : $page->template;
-                $type = "<strong class='template'>$type_label$type_icons</strong>";
+                $template_label = $page->template->label ? $page->template->label : $page->template;
+                $template = "<strong class='template'>$template_label$template_icons</strong>";
             } else {
                 // page has been deleted
-                $type = "<strong class='deleted'>" . __("deleted") . "</strong>";
+                $template = "<strong class='deleted'>" . __("deleted") . "</strong>";
             }
 
             // "deleted" is only phrase used in multiple contexts
             if ($operation != "deleted") $operation_i18n = __($operation);
             else $operation_i18n = _x($operation, 'operation');
 
-            $data[] = "<strong>$operation_i18n</strong> $type $target";
+            $data[] = "<strong>$operation_i18n</strong> $template $target";
 
             // link for removing individual row
             $data[] = "<a href='./delete/?id={$row['id']}' class='remove'>" . __("remove?") . "</a>";
@@ -401,7 +548,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $get = "";
         foreach ($this->input->get as $key => $value) {
             if ($key != "page" && $value != "") {
-                $get .= "&".urlencode($key)."=".urlencode($value);
+                $get .= "&amp;".urlencode($key)."=".urlencode($value);
             }
         }
 
@@ -510,63 +657,122 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         $markup = "";
 
-        // Action types
-        $options = array_merge(array(__("All operations")), $this->operations);
-        $markup .= $this->renderSelect('operation', $options, true);
+        // Operations
+        $markup .= $this->renderSelect('operation', $this->available_filters['operation']['options'], array('translate' => true));
+
+        // Templates
+        if (in_array('template', $this->visible_filters)) {
+            $options = array();
+            $join_flags = "";
+            if ($this->input->get->flags) {
+                $flag = str_replace("_", "", $this->sanitizer->name($this->input->get->flags));
+                if (constant("Template::flag$flag")) {
+                    $operator = strpos($this->input->get->flags, "!") === 0 ? "!=" : "=";
+                    $join_flags .= "INNER JOIN templates "
+                                 . "ON templates.id = pages.templates_id "
+                                 . "AND templates.flags $operator " . constant("Template::flag$flag");
+                }
+            }                        
+            $sql = "SELECT DISTINCT pages.templates_id FROM pages
+                    $join_flags
+                    JOIN " . self::TABLE_NAME . " ON " . self::TABLE_NAME . ".pages_id = pages.id";
+            $result = $this->db->query($sql);
+            if (!$result->num_rows || $result->num_rows > 1) {
+                $options[] = __("pages");
+            }
+            while ($row = $result->fetch_assoc()) {
+                $template = $this->templates->get($row['templates_id']);
+                $key = sprintf(__("%s pages"), $template->get("label|name")); // %s pages // %s will be replaced run-time by template
+                $options[$key] = $template->name;
+            }
+            $markup .= $this->renderSelect('template', $options);
+        }
+
+        // Flags
+        if (in_array('flags', $this->visible_filters)) {
+            $options = $options = $this->available_filters['flags']['options'];
+            if ($this->input->get->template) {
+                // if template is set, some flag options may not be applicable
+                $template = $this->sanitizer->pageName($this->input->get->template);
+                $template_flags = $this->templates->get($template)->flags;
+                foreach ($options as $key => $value) {
+                    // note: sanitizer->name converts illegal characters (including
+                    // negation operator) to underscores, which are then removed to
+                    // catch possible flag names
+                    $flag = str_replace("_", "", $this->sanitizer->name($value));
+                    if (constant("Template::flag$flag")) {
+                        $negation = strpos($value, "!") === 0;
+                        $has_flag = $template_flags & constant("Template::flag$flag");
+                        if ($negation && $has_flag || !$negation && !$has_flag) {
+                            unset($options[$key]);
+                        }
+                    }
+                }
+                // unset "with any flags" if flags matched
+                if (count($options) > 1) unset($options[0]);
+            }
+            $markup .= $this->renderSelect('flags', $options);
+        }
 
         // Username
-        $options = array();
-        $operation = $this->db->real_escape_string($this->input->get->operation);
-        $where = ($operation) ? " WHERE operation = '$operation'" : "";
-        $sql = "SELECT DISTINCT username 
-                FROM " . self::TABLE_NAME . "
-                $where 
-                ORDER BY username DESC";
-        $result = $this->db->query($sql);
-        if (!$result->num_rows || $result->num_rows > 1) {
-            $options[] = __("by any user");
+        if (in_array('username', $this->visible_filters)) {
+            $options = array();
+            $operation = $this->db->real_escape_string($this->input->get->operation);
+            $where = ($operation) ? " WHERE operation = '$operation'" : "";
+            $sql = "SELECT DISTINCT username 
+                    FROM " . self::TABLE_NAME . "
+                    $where 
+                    ORDER BY username DESC";
+            $result = $this->db->query($sql);
+            if (!$result->num_rows || $result->num_rows > 1) {
+                $options[] = __("by any user");
+            }
+            while ($row = $result->fetch_assoc()) {
+                $key = sprintf(__("by %s"), $row['username']); // by %s // %s will be replaced run-time by username
+                $options[$key] = $row['username'];
+            }
+            $markup .= $this->renderSelect('username', $options);
         }
-        while($row = $result->fetch_assoc()) {
-            $key = sprintf(__("by %s"), $row['username']); // by %s // %s will be replaced run-time by username
-            $options[$key] = $row['username'];
+
+        // When
+        if (in_array('when', $this->visible_filters) || in_array('date_range', $this->visible_filters)) {
+            $options = array();
+            if (in_array('when', $this->visible_filters)) {
+                $options = $this->available_filters['when']['options'];
+                if (in_array('date_range', $this->visible_filters)) {
+                    $options[] = __("between");
+                }
+                $markup .= $this->renderSelect('when', $options);
+            }
+            
+            // Date range
+            if (in_array('date_range', $this->visible_filters)) {
+                $disabled_title = __("Not relevant in this context");
+                $date_from = ($this->input->get->date_from) ? date('d.m.Y', strtotime($this->input->get->date_from)) : '';
+                $date_until = ($this->input->get->date_until) ? date('d.m.Y', strtotime($this->input->get->date_until)) : '';
+                $input = $this->modules->get("InputfieldText");
+                $markup .= "<input type='text'"
+                         . " value='$date_from'"
+                         . " size='10'"
+                         . " data-maxdate='+0D'"
+                         . " data-dateformat='dd.mm.yy'"
+                         . " name='date_from'"
+                         . " data-disabled-title='$disabled_title'"
+                         . " class='changelog-datepicker'"
+                         . " />"
+                         . " .. "
+                         . "<input type='text'"
+                         . " value='$date_until'"
+                         . " size='10'"
+                         . " data-maxdate='+0D'"
+                         . " data-dateformat='dd.mm.yy'"
+                         . " name='date_until'"
+                         . " class='changelog-datepicker'"
+                         . " />";
+            }
         }
-        $markup .= $this->renderSelect('username', $options);
 
-        // Date options
-        $options = array(
-            __("whenever"),
-            __("within a day") => '1 DAY',
-            __("within a week") => '1 WEEK',
-            __("within a month") => '1 MONTH',
-            __("within a year") => '1 YEAR',
-            __("between")
-        );
-        $markup .= $this->renderSelect('when', $options);
-
-        // Date range
-        $disabled_title = __("Not relevant in this context");
-        $date_from = ($this->input->get->date_from) ? date('d.m.Y', strtotime($this->input->get->date_from)) : '';
-        $date_until = ($this->input->get->date_until) ? date('d.m.Y', strtotime($this->input->get->date_until)) : '';
-        $markup .= "<input type='text'"
-                 . " value='$date_from'"
-                 . " size='10'"
-                 . " data-maxdate='+0D'"
-                 . " data-dateformat='dd.mm.yy'"
-                 . " name='date_from'"
-                 . " data-disabled-title='$disabled_title'"
-                 . " class='changelog-datepicker'"
-                 . " />"
-                 . " .. "
-                 . "<input type='text'"
-                 . " value='$date_until'"
-                 . " size='10'"
-                 . " data-maxdate='+0D'"
-                 . " data-dateformat='dd.mm.yy'"
-                 . " name='date_until'"
-                 . " class='changelog-datepicker'"
-                 . " />";
-
-        return "<form id='filters'>$markup</form>";
+        if ($markup) return "<form id='filters'>$markup</form>";
         
     }
 
@@ -575,19 +781,22 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      *
      * @param string name
      * @param array $options
-     * @param boolean $translate
+     * @param array $settings
      * @return string
      */
-    private function renderSelect($name, array $options, $translate) {
+    private function renderSelect($name, array $options, array $translate = array(), array $disabled_options = array()) {
         
-        if (!$name) return;
+        if (!$name || isset($this->available_filters[$name]) && !in_array($name, $this->visible_filters)) return;
 
         $markup = "";
+        $counter = 0;
 
         foreach ($options as $key => $option) {
+            if (in_array($option, $disabled_options)) continue;
+            ++$counter;
             $value = $key ? $option : '';
             $text = !is_numeric($key) ? $key : $option;
-            if ($translate) {
+            if (isset($settings['translate'])) {
                 // phrase "deleted" is used in multiple contexts
                 if ($text == "deleted") $text = _x($text, $name);
                 else $text = __($text);
@@ -596,7 +805,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $markup .= "<option$selected value='$value'>$text</option>";
         }
 
-        return "<select name='$name'>$markup</select>";
+        $disabled = $counter < 2 ? " disabled='disabled' class='disabled'" : "";
+        return "<select name='$name'$disabled>$markup</select>";
 
     }
 
