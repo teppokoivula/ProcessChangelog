@@ -70,10 +70,17 @@ for later releases:
 
 **1.1**
 
+* filter additions
+  * flags
+  * template
+* visibility settings for filters
+
+**1.2**
+
 * alternative views
   * JSON output
 
-**1.2**
+**1.3**
 
 * usage statistics, possibly even graphs
 
