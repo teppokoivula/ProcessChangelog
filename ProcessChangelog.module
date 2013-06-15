@@ -179,7 +179,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $field = $modules->get("InputfieldText");
         $field->name = "date_format";
         $field->label = __("Date Format");
-        $field->notes = __("See the [PHP date](http://www.php.net/manual/en/function.date.php) function reference for more information on how to customize this format.");
+        $field->notes = sprintf(__("See the %s function reference for more information on how to customize this format.", "[PHP date](http://www.php.net/manual/en/function.date.php)")); // Date format notes // %s will be replaced by a link to date section of PHP manual run-time
         $field->value = ($data['date_format']) ? $data['date_format'] : $defaults['date_format'];
         $field->size = 70;
         $fields->add($field);
@@ -268,7 +268,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      */
     public function init() {
         parent::init();
-        if (count(array_intersect(array("operation", "template"), $this->visible_filters)) == 2) {
+        if (count(array_intersect(array("operation", "template", "flags"), $this->visible_filters)) > 1) {
             $available_filters = $this->available_filters;
             $available_filters['operation']['options'] = array_merge(
                 array(__("All operations on")),
@@ -456,7 +456,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             switch ($operation) {
                 case 'renamed':
                     $target .= $details["Previous $key"] 
-                             . " <strong>" . __("as") . "</strong> " 
+                             . " <strong>" . __("as") . "</strong> " // as // In context of a rename operation ("renamed old-page-name as new-page-name")
                              . $details["Current $key"];
                     break;
                 case 'trashed':
@@ -690,7 +690,15 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // Flags
         if (in_array('flags', $this->visible_filters)) {
-            $options = $options = $this->available_filters['flags']['options'];
+            $options = $this->available_filters['flags']['options'];
+            if (!in_array('template', $this->visible_filters)) {
+                foreach ($options as $option => $value) {
+                    $new_option = $option ? __("pages ") . $option : 0; // pages // In context of flags ("pages with system flags" etc.)
+                    if ($new_option) unset($options[$option]);
+                    else $value = __("pages ") . $value;
+                    $options[$new_option] = $value;
+                }
+            }
             if ($this->input->get->template) {
                 // if template is set, some flag options may not be applicable
                 $template = $this->sanitizer->pageName($this->input->get->template);
@@ -729,6 +737,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             }
             while ($row = $result->fetch_assoc()) {
                 $key = sprintf(__("by %s"), $row['username']); // by %s // %s will be replaced run-time by username
+                if (!in_array("operation", $this->visible_filters)) $key = sprintf(__("modified %s"), $key); // modified %s // %s will be replaced run-time with "by [username]"
                 $options[$key] = $row['username'];
             }
             $markup .= $this->renderSelect('username', $options);
@@ -740,7 +749,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             if (in_array('when', $this->visible_filters)) {
                 $options = $this->available_filters['when']['options'];
                 if (in_array('date_range', $this->visible_filters)) {
-                    $options[] = __("between");
+                    $options[__("between")] = "between";
                 }
                 $markup .= $this->renderSelect('when', $options);
             }
