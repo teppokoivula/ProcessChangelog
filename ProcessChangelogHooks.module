@@ -32,7 +32,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 102,
+            'version' => 103,
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -119,6 +119,19 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $field->attr('value', $data['operations']);
         $field->description = __("You can choose which operations to keep track of here.");
         $field->notes = __("Note that unchecking operations later won't remove rows containing them from database. Instead new rows of those types will no longer be created and existing ones won't be visible anymore.");
+        $fields->add($field);
+
+        // should caller (script or URL that triggered this action) be logged?
+        // for how long should collected data be retained?
+        $field = $modules->get("InputfieldSelect");
+        $field->name = "log_caller";
+        $field->label = __("Caller logging");
+        $field->description = __("Enable logging of path/URL for script that triggered action?");
+        $field->addOption(null, __("Disabled"));
+        $field->addOption('external', __("For external callers only (CLI and external applications)"));
+        $field->addOption('all', __('For all callers (CLI, external applications and ProcessWire itself)'));
+        $field->notes = __("This can be useful when trying to find out why certain change was triggered. On the other hand it adds to the size of your database table and slightly slows script execution, which is why it's disabled by default.");
+        if (isset($data['log_caller'])) $field->value = $data['log_caller'];
         $fields->add($field);
 
         // for how long should collected data be retained?
@@ -277,6 +290,23 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             $details['Page URL'] = $page->url;
             if (isset($fields_edited) && $fields_edited) {
                 $details['Fields edited'] = $fields_edited;
+            }
+        }
+
+        // find out which script / URL triggered this particular action
+        if ($this->log_caller) {
+            $caller_is_processwire = false;
+            $index = $this->config->paths->root."index.php";
+            if (isset($_SERVER['HTTP_HOST']) && isset($_SERVER['REQUEST_URI'])) {
+                $scheme = $this->config->https ? "https://" : "http://";
+                $caller = $scheme.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+                $caller_is_processwire = realpath($_SERVER['SCRIPT_FILENAME']) === $index;
+            } else {
+                $caller = realpath($_SERVER['SCRIPT_FILENAME']);
+                $caller_is_processwire = $caller === $index;
+            }
+            if ($this->log_caller == "all" || !$caller_is_processwire) {
+                $details['Caller'] = $caller;
             }
         }
 

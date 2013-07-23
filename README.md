@@ -57,6 +57,11 @@ other data collection, both have their own settings:
 * Defines which operations to keep track of / which should be ignored.
 * Default: all available operations
 
+**Caller Logging**
+
+* Defines whether path/URL for script that triggered action should be stored.
+* Default: disabled
+
 **Data Max Age**
 
 * Defines how long collected data is kept before being removed automatically.
