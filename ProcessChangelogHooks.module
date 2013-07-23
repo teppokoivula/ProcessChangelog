@@ -32,7 +32,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 103,
+            'version' => 104,
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -297,7 +297,13 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         if ($this->log_caller) {
             $caller_is_processwire = false;
             $index = $this->config->paths->root."index.php";
-            if (isset($_SERVER['HTTP_HOST']) && isset($_SERVER['REQUEST_URI'])) {
+            if (isset($_SERVER['HTTP_HOST'])) {
+                if (!isset($_SERVER['REQUEST_URI'])) {
+                    // this was adapted from http://davidwalsh.name/iis-php-server-request_uri
+                    // to support IIS server (not exactly necessary, but thought it'd be nice)
+                    $qs = isset($_SERVER['QUERY_STRING']) ? "?".$_SERVER['QUERY_STRING'] : "";
+                    $_SERVER['REQUEST_URI'] = substr($_SERVER['PHP_SELF'], 1) . $qs;
+                }
                 $scheme = $this->config->https ? "https://" : "http://";
                 $caller = $scheme.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
                 $caller_is_processwire = realpath($_SERVER['SCRIPT_FILENAME']) === $index;
