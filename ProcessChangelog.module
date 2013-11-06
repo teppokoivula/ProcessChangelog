@@ -61,11 +61,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 'operation' => array(
                     'label' => __("Operation"),
                     'options' => array(__("All operations")),
-                    'translate' => true
+                    'translate' => true,
                 ),
                 'template' => array(
                     'label' => __("Template"),
-                    'options' => array()
+                    'options' => array(),
+                    'translate' => false,
                 ),
                 'flags' => array(
                     'label' => __("Flags"),
@@ -73,11 +74,13 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         __("with any flags"),
                         __("with system flag") => 'System',
                         __("without system flag") => '!System'
-                    )
+                    ),
+                    'translate' => false,
                 ),
                 'username' => array(
                     'label' => __("Username"),
-                    'options' => array()
+                    'options' => array(),
+                    'translate' => false,
                 ),
                 'when' => array(
                     'label' => __("When"),
@@ -87,11 +90,13 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         __("within a week") => '1 WEEK',
                         __("within a month") => '1 MONTH',
                         __("within a year") => '1 YEAR'
-                    )
+                    ),
+                    'translate' => false,
                 ),
                 'date_range' => array(
                     'label' => __("Date range"),
-                    'options' => array()
+                    'options' => array(),
+                    'translate' => false,
                 )
             )
         );
@@ -179,7 +184,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $field = $modules->get("InputfieldText");
         $field->name = "date_format";
         $field->label = __("Date Format");
-        $field->notes = sprintf(__("See the %s function reference for more information on how to customize this format.", "[PHP date](http://www.php.net/manual/en/function.date.php)")); // Date format notes // %s will be replaced by a link to date section of PHP manual run-time
+        $field->notes = sprintf(__("See the %s function reference for more information on how to customize this format."), "[PHP date](http://www.php.net/manual/en/function.date.php)"); // Date format notes // %s will be replaced by a link to date section of PHP manual run-time
         $field->value = ($data['date_format']) ? $data['date_format'] : $defaults['date_format'];
         $field->size = 70;
         $fields->add($field);
