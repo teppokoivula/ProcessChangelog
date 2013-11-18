@@ -31,7 +31,7 @@ $(document).ready(function() {
     // remove link
     var are_you_sure = $('span[data-term=are_you_sure]').text();
     var remove_failed = $('span[data-term=remove_failed]').text();
-    $('table.changelog a.remove').live('click', function() {
+    $('table.changelog').delegate('a.remove', 'click', function() {
         if (confirm(are_you_sure)) {
             var $link = $(this);
             $.get($(this).attr('href'), function(data) {
