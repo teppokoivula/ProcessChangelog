@@ -32,7 +32,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 104,
+            'version' => 105,
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -59,7 +59,8 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 'restored',
                 'published',
                 'unpublished'
-            )
+            ),
+            'schema_version' => 1,
         );
     }
     
@@ -68,6 +69,12 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      *
      */
     const TABLE_NAME = 'process_changelog';
+
+    /**
+    * Version number of latest database schema
+    *
+    */
+    const SCHEMA_VERSION = 2;
 
     /**
      * Populate the default config data
@@ -164,6 +171,11 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      *
      */
     public function init() {
+
+        // update database schema (if not the latest one yet)
+        if ($this->schema_version < self::SCHEMA_VERSION) {
+            $this->updateDatabaseSchema();
+        }
 
         // remove expired rows daily
         $this->addHook("LazyCron::everyDay", $this, 'cleanup');
@@ -273,6 +285,11 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             $details['Page name'] = $page->name;
         }
 
+        $details['Template name'] = $page->template->name;
+        if ($page->templatePrevious) {
+            $details['Previous template name'] = $page->templatePrevious->name;
+        }
+
         if ($operation != "edited") {
             // for pages being edited current or previous parent is irrelevant
             // data since changing parent will also trigger "moved" operation.
@@ -316,7 +333,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             }
         }
 
-        $this->insert($operation, $page->id, $details);
+        $this->insert($operation, $page->id, $page->template->id, $details);
 
     }
 
@@ -328,11 +345,12 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * @param array $details
      * 
      */
-    private function insert($operation, $pages_id, $details = array()) {
+    private function insert($operation, $pages_id, $templates_id, $details = array()) {
 
         if (!in_array($operation, $this->operations)) throw new WireException('Unknown operation');
 
         $pages_id = (int) $pages_id;
+        $templates_id = (int) $templates_id;
         $user_id = $this->user->id;
         $username = $this->user->name;
 
@@ -346,11 +364,38 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         } else $details = null;
 
         // insert new row into database
-        $sql_fields = "user_id, username, pages_id, operation, data";
-        $sql_values = "$user_id, '$username', $pages_id, '$operation', '$details'";
+        $sql_fields = "user_id, username, pages_id, templates_id, operation, data";
+        $sql_values = "$user_id, '$username', $pages_id, $templates_id, '$operation', '$details'";
         $sql = "INSERT INTO " . self::TABLE_NAME . " ($sql_fields) VALUES ($sql_values)";
         $this->db->query($sql);
         
+    }
+
+    /**
+     * Update database schema
+     *
+     * This method applies incremental updates until current schema version is
+     * reached, while also keeping schema_version config setting up to date.
+     *
+     */
+    private function updateDatabaseSchema() {
+        while ($this->schema_version < self::SCHEMA_VERSION) {
+            ++$this->schema_version;
+            switch ($this->schema_version) {
+                case 2:
+                    $sql = "ALTER TABLE " . self::TABLE_NAME . " ADD templates_id INT(10) UNSIGNED NOT NULL DEFAULT 0 AFTER pages_id";
+                    break;
+                default:
+                    throw new WireException("Unrecognized database schema version: $this->schema_version");
+            }
+            if ($sql && $this->db->query($sql)) {
+                $configData = $this->modules->getModuleConfigData($this);
+                $configData['schema_version'] = $this->schema_version;
+                $this->modules->saveModuleConfigData($this, $configData);
+            } else {
+                throw new WireException("Couldn't update database schema to version $this->schema_version");
+            }
+        }
     }
     
 }

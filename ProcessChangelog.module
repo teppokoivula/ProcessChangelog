@@ -294,6 +294,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * @return string
      */
     public function ___execute() {
+
+    	// render filters (this has to be done here because certain filter
+    	// choices may affect choices available when building SQL queries)
+    	$filters = $this->renderFilters();
         
         // setup admin data table
         $table = $this->modules->get("MarkupAdminDataTable");
@@ -360,20 +364,21 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         }
                         break;
                     case "template":
-                        $join = "pages ON pages.id = " . self::TABLE_NAME . ".pages_id";
+                        $join = "LEFT OUTER JOIN pages ON pages.id = " . self::TABLE_NAME . ".pages_id";
                         if (!in_array($join, $joins)) $joins[] = $join;
                         $template = $this->sanitizer->pageName($value);
                         $templates_id = $this->templates->get($template)->id;
                         if ($templates_id) {
-                            $where[] = "pages.templates_id $operator " . $templates_id;
+                            $where[] = "pages.templates_id $operator $templates_id"
+                                     . " OR " . self::TABLE_NAME . ".templates_id $operator $templates_id";
                         } else {
                             throw new WireException(sprintf(__("Template not found: %s"), $template));
                         }
                         break;
                     case "flags":
-                        $join = "pages ON pages.id = " . self::TABLE_NAME . ".pages_id";
+                        $join = "LEFT OUTER JOIN pages ON pages.id = " . self::TABLE_NAME . ".pages_id";
                         if (!in_array($join, $joins)) $joins[] = $join;
-                        $joins[] = "templates ON templates.id = pages.templates_id";
+                        $joins[] = "JOIN templates ON templates.id IN(pages.templates_id, " . self::TABLE_NAME . ".templates_id)";
                         if (constant("Template::flag$value")) {
                             // since this is a bitwise operation, we need to
                             // modify our operator logic.. a bit
@@ -404,7 +409,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // put together where clause and join syntax
         $where = $where ? "WHERE " . implode(" AND ", $where) : "";
-        $joins = $joins ? "JOIN " . implode(" JOIN ", $joins) : "";
+        $joins = $joins ? " " . implode(" ", $joins) : "";
         
         // variables required by pager
         $start = 0;
@@ -460,6 +465,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
             // variables we're going to need later
             $target = "";
+            $template = "";
             $operation = $row['operation'];
             $page = $this->pages->get($row['pages_id']);
             $details = json_decode($row['data'], true);
@@ -473,7 +479,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                              . $details["Current $key"];
                     break;
                 case 'trashed':
-                    $target .= $details["Previous $key"];
+                    $target .= $details["Previous $key"] 
+                             . " <em>(" . $details["Current $key"] . ")</em>";
                     break;
                 case 'restored':
                     $target .= $details["Current $key"];
@@ -491,14 +498,20 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 $href = "{$this->config->urls->admin}page/edit/?id={$page->id}";
                 $target .= " &nbsp; <a class='edit' href='$href'>" . __("edit page") . "</a></em>";
                 // template
+                $template = $page->template;
+            } else if ($row["templates_id"] && $this->templates->get($row["templates_id"])) {
+                $template = $this->templates->get($row["templates_id"]);
+            }
+
+            if ($template) {
                 $template_icons = "";
-                if ($page->template->flags & Template::flagSystem) {
+                if ($template->flags & Template::flagSystem) {
                     $template_icons .= "<b class='icon system' title='" . __("System template") . "'></b>";
                 }
-                $template_label = $page->template->label ? $page->template->label : $page->template;
-                $template = "<strong class='template'>$template_label$template_icons</strong>";
+                $template_label = $template->label ? $template->label : $template;
+                $template = "<strong class='template'>$template_label$template_icons</strong> ";
             } else {
-                // page has been deleted
+                // template is unknown or has been deleted
                 $template = "<strong class='deleted'>" . __("deleted") . "</strong>";
             }
 
@@ -541,7 +554,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $info .= "</p></div>";
 
         // return admin data table markup, pager and translations
-        return $this->renderFilters().$info.$table->render().$pager.$translations;
+        return $filters.$info.$table->render().$pager.$translations;
 
     }
 
@@ -681,15 +694,14 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             if ($this->input->get->flags) {
                 $flag = str_replace("_", "", $this->sanitizer->name($this->input->get->flags));
                 if (constant("Template::flag$flag")) {
-                    $operator = strpos($this->input->get->flags, "!") === 0 ? "!=" : "=";
-                    $join_flags .= "INNER JOIN templates "
-                                 . "ON templates.id = pages.templates_id "
-                                 . "AND templates.flags $operator " . constant("Template::flag$flag");
+                    $and_on = "templates.flags & " . constant("Template::flag$flag");
+                    if (strpos($this->input->get->flags, "!") === 0) $on = "NOT($on)";
+                    $join_flags .= "JOIN templates "
+                                 . "ON templates.id = " . self::TABLE_NAME . ".templates_id "
+                                 . "AND $and_on";
                 }
             }                        
-            $sql = "SELECT DISTINCT pages.templates_id FROM pages
-                    $join_flags
-                    JOIN " . self::TABLE_NAME . " ON " . self::TABLE_NAME . ".pages_id = pages.id";
+            $sql = "SELECT " . self::TABLE_NAME . ".templates_id FROM " . self::TABLE_NAME . " $join_flags";
             $result = $this->db->query($sql);
             if (!$result->num_rows || $result->num_rows > 1) {
                 $options[] = __("pages");
@@ -726,6 +738,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         $negation = strpos($value, "!") === 0;
                         $has_flag = $template_flags & constant("Template::flag$flag");
                         if ($negation && $has_flag || !$negation && !$has_flag) {
+                            if ($this->input->get->flags == $options[$key]) {
+                            	// flag being removed from available options is
+                            	// used as search criteria; unset GET param too
+                            	unset($this->input->get->flags);
+                            }
                             unset($options[$key]);
                         }
                     }
@@ -842,7 +859,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      */
     public function ___install() {
 
-        // create database table this module requires
+        // create required database table. related hooks module *will* make
+        // changes to it's schema, so it's *not* guaranteed to stay as-is.
         $sql = "
         CREATE TABLE " . self::TABLE_NAME . " (
             id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -876,7 +894,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $page->save();
 
         // tell user that we've created a new page
-        $this->message("Created Page: {$page->path}"); 
+        $this->message("Created Page: {$page->path}");
 
     }
 
