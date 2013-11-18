@@ -9,6 +9,10 @@ form#filters {
     padding: 1.2em 1em 1.4em 1em;
 }
 
+body.template-admin form#filters {
+    margin-top: 1.25em;
+}
+
 form#filters select,
 form#filters .changelog-datepicker {
     border: 1px solid #dbe3e5;
@@ -76,6 +80,7 @@ table.changelog small {
 
 table.changelog tr {
     line-height: 2em;
+    display: table-row;
 }
 
 table.changelog tr.open td {
@@ -100,6 +105,16 @@ table.changelog tr.more div {
     background: url('img/desktop.png') 10px 10px no-repeat #e9eff1;
 }
 
+table.changelog tr.more:hover td,
+table.changelog tr.more:hover th {
+    background: transparent;
+}
+
+table.changelog tr.more:hover div tr td,
+table.changelog tr.more:hover div tr th {
+    background: #e9eff1;
+}
+
 table.changelog tr#device-type td:first-letter {
     text-transform: uppercase;
 }
@@ -116,6 +131,7 @@ table.changelog tr.more.icon-unpublished div { background-image: url('img/unpubl
 
 table.changelog tr.more table {
     margin: 0;
+    display: table;
 }
 
 table.changelog tr.more table th,
@@ -125,7 +141,7 @@ table.changelog tr.more table td {
     font-size: 1em;
 }
 
-table.changelog tr.more table th:hover {
+table.changelog tr.more table th {
     color: #777 !important;
     text-decoration: none;
     cursor: auto;
