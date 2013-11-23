@@ -32,7 +32,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 105,
+            'version' => 106,
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -50,30 +50,25 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     static public function getDefaultData() {
         return array(
             'operations' => array(
-                'added',
-                'moved',
-                'edited',
-                'trashed',
-                'renamed',
-                'deleted',
-                'restored',
-                'published',
-                'unpublished'
+                "added" => __("added"),
+                "moved" => __("moved"),
+                "edited" => __("edited"),
+                "trashed" => __("trashed"),
+                "renamed" => __("renamed"),
+                "deleted" => __("deleted"),
+                "restored" => __("restored"),
+                "published" => __("published"),
+                "unpublished" => __("unpublished")
             ),
             'schema_version' => 1,
         );
     }
     
     /**
-     * Name of database table used by this module
+     * Name and latest schema version for database table used by this module
      *
      */
     const TABLE_NAME = 'process_changelog';
-
-    /**
-    * Version number of latest database schema
-    *
-    */
     const SCHEMA_VERSION = 2;
 
     /**
@@ -112,33 +107,24 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $field = $modules->get("InputfieldCheckboxes");
         $field->name = "operations";
         $field->label = __("Operations");
-        $field->addOptions(array(
-                "added" => __("added"),
-                "moved" => __("moved"),
-                "edited" => __("edited"),
-                "trashed" => __("trashed"),
-                "renamed" => __("renamed"),
-                "deleted" => __("deleted"),
-                "restored" => __("restored"),
-                "published" => __("published"),
-                "unpublished" => __("unpublished")
-            ));
-        $field->attr('value', $data['operations']);
+        $field->addOptions($defaults['operations']);
+        $field->value = ($data['operations'] === $defaults['operations']) ? array_keys($defaults['operations']) : $data['operations'];
         $field->description = __("You can choose which operations to keep track of here.");
         $field->notes = __("Note that unchecking operations later won't remove rows containing them from database. Instead new rows of those types will no longer be created and existing ones won't be visible anymore.");
         $fields->add($field);
 
         // should caller (script or URL that triggered this action) be logged?
-        // for how long should collected data be retained?
         $field = $modules->get("InputfieldSelect");
         $field->name = "log_caller";
         $field->label = __("Caller logging");
         $field->description = __("Enable logging of path/URL for script that triggered action?");
-        $field->addOption(null, __("Disabled"));
-        $field->addOption('external', __("For external callers only (CLI and external applications)"));
-        $field->addOption('all', __('For all callers (CLI, external applications and ProcessWire itself)'));
+        $field->addOptions(array(
+            null => __("Disabled"),
+            'external' => __("For external callers only (CLI and external applications)"),
+            'all' => __('For all callers (CLI, external applications and ProcessWire itself)')
+        ));
         $field->notes = __("This can be useful when trying to find out why certain change was triggered. On the other hand it adds to the size of your database table and slightly slows script execution, which is why it's disabled by default.");
-        if (isset($data['log_caller'])) $field->value = $data['log_caller'];
+        $field->value = isset($data[$field->name]) ? $data[$field->name] : null;
         $fields->add($field);
 
         // for how long should collected data be retained?
@@ -146,22 +132,24 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $field->name = "data_max_age";
         $field->label = __("Data max age");
         $field->description = __("For how long should we retain collected data?");
+        $field->notes = __("Automatic cleanup requires LazyCron module, which isn't currently installed.");
         if ($modules->isInstalled("LazyCron")) {
-            $field->addOption('1 WEEK', __('1 week'));
-            $field->addOption('2 WEEK', __('2 weeks'));
-            $field->addOption('1 MONTH', __('1 month'));
-            $field->addOption('2 MONTH', __('2 months'));
-            $field->addOption('3 MONTH', __('3 months'));
-            $field->addOption('6 MONTH', __('6 months'));
-            $field->addOption('1 YEAR', __('1 year'));
+            $field->addOptions(array(
+                '1 WEEK' => __('1 week'),
+                '2 WEEK' => __('2 weeks'),
+                '1 MONTH' => __('1 month'),
+                '2 MONTH' => __('2 months'),
+                '3 MONTH' => __('3 months'),
+                '6 MONTH' => __('6 months'),
+                '1 YEAR' => __('1 year')
+            ));
             $field->notes = __("Leave empty to disable automatic cleanup.");
-        } else {
-            $field->notes = __("Automatic cleanup requires LazyCron module, which isn't currently installed.");
+            $field->value = isset($data[$field->name]) ? $data[$field->name] : null;
         }
-        if (isset($data['data_max_age'])) $field->value = $data['data_max_age'];
         $fields->add($field);
 
         return $fields;
+
     }
 
     /**
@@ -180,13 +168,13 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         // remove expired rows daily
         $this->addHook("LazyCron::everyDay", $this, 'cleanup');
 
-		// add hooks that gather information and trigger insert
-		$this->pages->addHook('added', $this, 'logPageEvent'); 
-		$this->pages->addHook('moved', $this, 'logPageEvent'); 
-		$this->pages->addHook('renamed', $this, 'logPageEvent'); 
-		$this->pages->addHook('deleted', $this, 'logPageEvent'); 
-		$this->pages->addHook('saveReady', $this, 'logPageEvent'); 
-		$this->pages->addHookAfter('saveReady', $this, 'logPageEvent'); 
+        // add hooks that gather information and trigger insert
+        $this->pages->addHook('added', $this, 'logPageEvent'); 
+        $this->pages->addHook('moved', $this, 'logPageEvent'); 
+        $this->pages->addHook('renamed', $this, 'logPageEvent'); 
+        $this->pages->addHook('deleted', $this, 'logPageEvent'); 
+        $this->pages->addHook('saveReady', $this, 'logPageEvent'); 
+        $this->pages->addHookAfter('saveReady', $this, 'logPageEvent'); 
 
     }
 
@@ -217,7 +205,8 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         // don't log operations for repeaters or admin pages
         if ($page instanceof RepeaterPage || $page->template == "admin") return;
 
-        // grab current operation from event
+        // grab operation from event; unpublished + published are special cases
+        // based on page's status when saveReady is triggered *for second time*
         $operation = $event->method;
         if ($operation == "saveReady") {
             static $saved = array();
@@ -237,20 +226,17 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         if (!in_array($operation, $this->operations)) return;
 
         if ($operation == "edited") {
-            // if page has no id, it's currently being added
-            if (!$page->id) return;
-            // if page has previous parent, it's being restored or trashed
-            if ($page->parentPrevious) return;
+            // skip new pages or pages being restored/trashed
+            if (!$page->id || $page->parentPrevious) return;
             if ($page->isChanged()) {
-                $fields_edited = '';
+                $fields_edited = array();
                 foreach ($page->template->fields as $field) {
                     if ($page->isChanged($field->name)) {
-                        if ($fields_edited) $fields_edited .= ", ";
-                        $fields_edited .= $field->name;
+                        $fields_edited[] = $field->name;
                     }
                 }
                 // only continue if at least one field has been changed
-                if (!$fields_edited) return;
+                if (!count($fields_edited)) return;
             } else return;
         } else if ($operation == "renamed") {
             // if previous parent is trash, page is being restored
@@ -268,8 +254,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             }
         }
 
-        // details will contain any available information about
-        // the page being edited, trashed, moved etc.
+        // container for details about page being edited, trashed, moved etc.
         $details = array();
 
         if ($page->title) $details['Page title'] = $page->title;
@@ -305,15 +290,15 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             // this only applies to pages being edited (no other operation
             // keeps record of edited fields)
             $details['Page URL'] = $page->url;
-            if (isset($fields_edited) && $fields_edited) {
-                $details['Fields edited'] = $fields_edited;
+            if (isset($fields_edited) && count($fields_edited)) {
+                $details['Fields edited'] = implode(", ", $fields_edited);
             }
         }
 
         // find out which script / URL triggered this particular action
         if ($this->log_caller) {
             $caller_is_processwire = false;
-            $index = $this->config->paths->root."index.php";
+            $index = $this->config->paths->root . "index.php";
             if (isset($_SERVER['HTTP_HOST'])) {
                 if (!isset($_SERVER['REQUEST_URI'])) {
                     // this was adapted from http://davidwalsh.name/iis-php-server-request_uri
@@ -374,7 +359,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     /**
      * Update database schema
      *
-     * This method applies incremental updates until current schema version is
+     * This method applies incremental updates until latest schema version is
      * reached, while also keeping schema_version config setting up to date.
      *
      */
