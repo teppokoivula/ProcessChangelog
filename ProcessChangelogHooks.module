@@ -3,9 +3,8 @@
 /**
  * Hooks for Process Changelog
  *
- * This module inserts hooks required by Process Changelog module and handles
- * saving data to related database table. Separated from main module to keep
- * ProcessWire from autoloading as much unnecessary code as possible.
+ * This module stores changelog data to custom database table. Separated from
+ * main module to keep ProcessWire from autoloading any unnecessary code.
  * 
  * For detailed information, installation instructions etc. see README.md.
  *
@@ -32,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 106,
+            'version' => 107,
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -225,11 +224,11 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         // only continue if this operation is set to be logged
         if (!in_array($operation, $this->operations)) return;
 
+        $fields_edited = array();
         if ($operation == "edited") {
             // skip new pages or pages being restored/trashed
             if (!$page->id || $page->parentPrevious) return;
             if ($page->isChanged()) {
-                $fields_edited = array();
                 foreach ($page->template->fields as $field) {
                     if ($page->isChanged($field->name)) {
                         $fields_edited[] = $field->name;
@@ -244,7 +243,6 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             // if current parent is trash, page is being trashed
             else if ($page->parent->id == $this->config->trashPageID) return;
         } else if ($operation == "moved") {
-            // catch pages being trashed or restored from trash
             if ($page->parent->id == $this->config->trashPageID) {
                 // page is being trashed
                 $operation = "trashed";
@@ -254,20 +252,14 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             }
         }
 
-        // container for details about page being edited, trashed, moved etc.
+        // details about page being edited, trashed, moved etc.
         $details = array();
 
         if ($page->title) $details['Page title'] = $page->title;
 
+        $details['Page name'] = $page->name;
         if ($page->namePrevious) {
-            if ($operation == "moved") {
-                $details['Page name'] = $page->namePrevious;
-            } else {
-                $details['Previous page name'] = $page->namePrevious;
-                if ($page->name) $details['Current page name'] = $page->name;
-            }
-        } else if ($page->name) {
-            $details['Page name'] = $page->name;
+            $details['Page name' . $operation == "moved" ? '' : ' previous'] = $page->namePrevious;
         }
 
         $details['Template name'] = $page->template->name;
@@ -275,50 +267,47 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             $details['Previous template name'] = $page->templatePrevious->name;
         }
 
-        if ($operation != "edited") {
+        $details['Page URL'] = $page->url;
+        if ($page->parentPrevious && $operation != "edited") {
             // for pages being edited current or previous parent is irrelevant
             // data since changing parent will also trigger "moved" operation.
-            if ($page->parentPrevious) {
-                $details['Previous URL'] = $page->parentPrevious->url;
-                if ($page->namePrevious) $details['Previous URL'] .= $page->namePrevious."/";
-                else $details['Previous URL'] .= $page->name."/";
-                $details['Current URL'] = $page->url;
-            } else {
-                $details['Page URL'] = $page->url;
-            }
-        } else {
-            // this only applies to pages being edited (no other operation
-            // keeps record of edited fields)
-            $details['Page URL'] = $page->url;
-            if (isset($fields_edited) && count($fields_edited)) {
-                $details['Fields edited'] = implode(", ", $fields_edited);
-            }
+            $details['Previous URL'] = $page->parentPrevious->url;
+            if ($page->namePrevious) $details['Previous URL'] .= $page->namePrevious."/";
+            else $details['Previous URL'] .= $page->name."/";
         }
+
+        // note: currently only "edited" operation keeps track of edited fields
+        if (count($fields_edited)) $details['Fields edited'] = implode(", ", $fields_edited);
 
         // find out which script / URL triggered this particular action
-        if ($this->log_caller) {
-            $caller_is_processwire = false;
-            $index = $this->config->paths->root . "index.php";
-            if (isset($_SERVER['HTTP_HOST'])) {
-                if (!isset($_SERVER['REQUEST_URI'])) {
-                    // this was adapted from http://davidwalsh.name/iis-php-server-request_uri
-                    // to support IIS server (not exactly necessary, but thought it'd be nice)
-                    $qs = isset($_SERVER['QUERY_STRING']) ? "?".$_SERVER['QUERY_STRING'] : "";
-                    $_SERVER['REQUEST_URI'] = substr($_SERVER['PHP_SELF'], 1) . $qs;
-                }
-                $scheme = $this->config->https ? "https://" : "http://";
-                $caller = $scheme.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
-                $caller_is_processwire = realpath($_SERVER['SCRIPT_FILENAME']) === $index;
-            } else {
-                $caller = realpath($_SERVER['SCRIPT_FILENAME']);
-                $caller_is_processwire = $caller === $index;
-            }
-            if ($this->log_caller == "all" || !$caller_is_processwire) {
-                $details['Caller'] = $caller;
-            }
-        }
+        if ($this->log_caller && $caller = $this->getCaller()) $details['Caller'] = $caller;
 
         $this->insert($operation, $page->id, $page->template->id, $details);
+
+    }
+
+    /**
+     * Find out which script / URL triggered current action
+     *
+     * @return string|null
+     */
+    private function getCaller() {
+
+        $index = $this->config->paths->root . "index.php";
+        $caller = realpath($_SERVER['SCRIPT_FILENAME']);
+        $caller_is_processwire = $caller === $index;
+
+        if (isset($_SERVER['HTTP_HOST'])) {
+            if (!isset($_SERVER['REQUEST_URI'])) {
+                // IIS support, based on http://davidwalsh.name/iis-php-server-request_uri
+                $qs = isset($_SERVER['QUERY_STRING']) ? "?".$_SERVER['QUERY_STRING'] : "";
+                $_SERVER['REQUEST_URI'] = substr($_SERVER['PHP_SELF'], 1) . $qs;
+            }
+            $scheme = $this->config->https ? "https://" : "http://";
+            $caller = $scheme.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+        }
+
+        if ($this->log_caller == "all" || !$caller_is_processwire) return $caller;
 
     }
 
@@ -327,8 +316,8 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      *
      * @param string $operation
      * @param int $pages_id
+     * @param int $templates_id
      * @param array $details
-     * 
      */
     private function insert($operation, $pages_id, $templates_id, $details = array()) {
 
