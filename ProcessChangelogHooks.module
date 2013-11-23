@@ -178,14 +178,16 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     }
 
     /**
-     * Delete data older than max age defined in module settings
+     * Delete data older than given interval
      *
+     * @param string $interval Interval, defaults to data_max_age setting
      */
-    public function cleanup() {
+    public function cleanup($interval = null) {
 
-        if (!$this->data_max_age) return;
+        if (is_null($interval) && is_null($this->data_max_age)) return;
+        else if (is_null($interval)) $interval = $this->data_max_age;
 
-        $interval = $this->db->escape_string($this->data_max_age);
+        $interval = $this->db->escape_string($interval);
         $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE timestamp < DATE_SUB(NOW(), INTERVAL $interval)";
         $this->db->query($sql);
 
