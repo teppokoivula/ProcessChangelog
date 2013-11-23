@@ -31,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 107,
+            'version' => 108,
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
