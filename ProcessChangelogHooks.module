@@ -31,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.10',
+            'version' => '1.0.11',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -261,7 +261,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
         $details['Page name'] = $page->name;
         if ($page->namePrevious) {
-            $details['Page name' . ($operation == "moved" ? '' : ' previous')] = $page->namePrevious;
+            $details[($operation == "moved" ? 'Page name' : 'Previous page name')] = $page->namePrevious;
         }
 
         $details['Template name'] = $page->template->name;
@@ -273,9 +273,9 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         if ($page->parentPrevious && $operation != "edited") {
             // for pages being edited current or previous parent is irrelevant
             // data since changing parent will also trigger "moved" operation.
-            $details['Previous URL'] = $page->parentPrevious->url;
-            if ($page->namePrevious) $details['Previous URL'] .= $page->namePrevious."/";
-            else $details['Previous URL'] .= $page->name."/";
+            $details['Previous page URL'] = $page->parentPrevious->url;
+            if ($page->namePrevious) $details['Previous page URL'] .= $page->namePrevious."/";
+            else $details['Previous page URL'] .= $page->name."/";
         }
 
         // note: currently only "edited" operation keeps track of edited fields
