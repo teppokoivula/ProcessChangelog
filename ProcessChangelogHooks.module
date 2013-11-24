@@ -31,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 108,
+            'version' => 109,
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -372,6 +372,45 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 throw new WireException("Couldn't update database schema to version $this->schema_version");
             }
         }
+    }
+    
+    /**
+     * Called only when this module is installed
+     *
+     * Creates new custom database table for storing data.
+     *
+     */
+    public function ___install() {
+
+        // create required database table. note that updateDatabaseSchema will
+        // make changes to it's schema, so it's not guaranteed to stay as-is.
+        $sql = "
+        CREATE TABLE " . self::TABLE_NAME . " (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            user_id INT(10) UNSIGNED NOT NULL DEFAULT 0,
+            username VARCHAR(128) DEFAULT NULL,
+            pages_id INT(10) UNSIGNED NOT NULL DEFAULT 0,
+            operation VARCHAR(128) NOT NULL,
+            data TEXT DEFAULT NULL,
+            timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE = MYISAM;
+        ";
+        $this->db->query($sql);
+
+        // tell the user that we've created new database table
+        $this->message("Created Table: " . self::TABLE_NAME); 
+
+    }
+
+    /**
+     * Called only when this module is uninstalled
+     *
+     * Drops database table created during installation.
+     *
+     */
+    public function ___uninstall() {
+        $this->message("Deleting Table: " . self::TABLE_NAME);
+        $this->db->query("DROP TABLE IF EXISTS " . self::TABLE_NAME);
     }
     
 }

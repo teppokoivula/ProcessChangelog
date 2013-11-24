@@ -31,7 +31,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 116,
+            'version' => 117,
             'singular' => true,
             'autoload' => false,
             'installs' => 'ProcessChangelogHooks'
@@ -103,11 +103,16 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     }
     
     /**
-     * Names of admin page and database table used by this module
+     * Name of admin page related to this module
      *
      */
     const PAGE_NAME = 'changelog';
-    const TABLE_NAME = 'process_changelog';
+
+    /**
+     * Name of database table used by this module
+     *
+     */
+    protected $table_name;
 
     /**
      * Array of operations being logged
@@ -125,8 +130,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      */
     public function __construct() {
         // settings of ProcessChangelogHooks module define which operations get logged,
-        // so we'll get that information from there in order to keep things consistent.
+        // and the name of the database table they are stored in, so we'll get that
+        // information from there in order to keep things consistent.
         if ($this->modules->isInstalled("ProcessChangelogHooks")) {
+            $this->table_name = ProcessChangelogHooks::TABLE_NAME;
             $config = $this->modules->getModuleConfigData("ProcessChangelogHooks");
             if (isset($config['operations'])) {
                 $this->operations = $config['operations'];
@@ -364,21 +371,21 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         }
                         break;
                     case "template":
-                        $join = "LEFT OUTER JOIN pages ON pages.id = " . self::TABLE_NAME . ".pages_id";
+                        $join = "LEFT OUTER JOIN pages ON pages.id = {$this->table_name}.pages_id";
                         if (!in_array($join, $joins)) $joins[] = $join;
                         $template = $this->sanitizer->pageName($value);
                         $templates_id = $this->templates->get($template)->id;
                         if ($templates_id) {
                             $where[] = "pages.templates_id $operator $templates_id"
-                                     . " OR " . self::TABLE_NAME . ".templates_id $operator $templates_id";
+                                     . " OR {$this->table_name}.templates_id $operator $templates_id";
                         } else {
                             throw new WireException(sprintf(__("Template not found: %s"), $template));
                         }
                         break;
                     case "flags":
-                        $join = "LEFT OUTER JOIN pages ON pages.id = " . self::TABLE_NAME . ".pages_id";
+                        $join = "LEFT OUTER JOIN pages ON pages.id = {$this->table_name}.pages_id";
                         if (!in_array($join, $joins)) $joins[] = $join;
-                        $joins[] = "JOIN templates ON templates.id IN(pages.templates_id, " . self::TABLE_NAME . ".templates_id)";
+                        $joins[] = "JOIN templates ON templates.id IN(pages.templates_id, {$this->table_name}.templates_id)";
                         if (constant("Template::flag$value")) {
                             // since this is a bitwise operation, we need to
                             // modify our operator logic.. a bit
@@ -414,7 +421,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // variables required by pager
         $start = 0;
         $limit = $this->row_limit;
-        $sql = "SELECT COUNT(*) FROM " . self::TABLE_NAME . " $joins $where";
+        $sql = "SELECT COUNT(*) FROM {$this->table_name} $joins $where";
         $total = reset($this->db->query($sql)->fetch_row());
         if ($total > $limit) {
             if ($this->input->get->page) $start = ($this->input->get->page-1)*$limit;
@@ -425,8 +432,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         if ($total < 2) $table->setSortable(false);
 
         // fetch rows from database
-        $sql = "SELECT " . self::TABLE_NAME . ".*
-                FROM " . self::TABLE_NAME . " 
+        $sql = "SELECT {$this->table_name}.*
+                FROM {$this->table_name} 
                 $joins
                 $where 
                 ORDER BY timestamp DESC, id DESC
@@ -668,7 +675,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         if ((int) $this->input->get->id != $this->input->get->id) return false;
 
         $id = (int) $this->input->get->id;
-        $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE id = $id LIMIT 1";
+        $sql = "DELETE FROM {$this->table_name} WHERE id = $id LIMIT 1";
         $this->db->query($sql);
 
         return true;
@@ -697,11 +704,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                     $and_on = "templates.flags & " . constant("Template::flag$flag");
                     if (strpos($this->input->get->flags, "!") === 0) $on = "NOT($on)";
                     $join_flags .= "JOIN templates "
-                                 . "ON templates.id = " . self::TABLE_NAME . ".templates_id "
+                                 . "ON templates.id = {$this->table_name}.templates_id "
                                  . "AND $and_on";
                 }
             }                        
-            $sql = "SELECT " . self::TABLE_NAME . ".templates_id FROM " . self::TABLE_NAME . " $join_flags";
+            $sql = "SELECT {$this->table_name}.templates_id FROM {$this->table_name} $join_flags";
             $result = $this->db->query($sql);
             if (!$result->num_rows || $result->num_rows > 1) {
                 $options[] = __("pages");
@@ -759,7 +766,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $operation = $this->db->real_escape_string($this->input->get->operation);
             $where = ($operation) ? " WHERE operation = '$operation'" : "";
             $sql = "SELECT DISTINCT username 
-                    FROM " . self::TABLE_NAME . "
+                    FROM {$this->table_name}
                     $where 
                     ORDER BY username DESC";
             $result = $this->db->query($sql);
@@ -853,29 +860,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     /**
      * Called only when this module is installed
      *
-     * Creates new page with this Process module assigned and new database
-     * table for storing data.
+     * Creates new page with this Process module assigned.
      *
      */
     public function ___install() {
-
-        // create required database table. related hooks module *will* make
-        // changes to it's schema, so it's *not* guaranteed to stay as-is.
-        $sql = "
-        CREATE TABLE " . self::TABLE_NAME . " (
-            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            user_id INT(10) UNSIGNED NOT NULL DEFAULT 0,
-            username VARCHAR(128) DEFAULT NULL,
-            pages_id INT(10) UNSIGNED NOT NULL DEFAULT 0,
-            operation VARCHAR(128) NOT NULL,
-            data TEXT DEFAULT NULL,
-            timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE = MYISAM;
-        ";
-        $this->db->query($sql);
-
-        // tell the user that we've created new database table
-        $this->message("Created Table: " . self::TABLE_NAME); 
 
         // create a page for this module
         $page = new Page();
@@ -901,7 +889,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     /**
      * Called only when this module is uninstalled
      *
-     * Removes page associated with this Process module and also drops related table.
+     * Removes page associated with this Process module.
      *
      */
     public function ___uninstall() {
@@ -916,10 +904,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $this->message("Deleting Page: {$page->path}"); 
             $page->delete();
         }
-
-        // if database table exists, drop it
-        $this->message("Deleting Table: " . self::TABLE_NAME);
-        $this->db->query("DROP TABLE IF EXISTS " . self::TABLE_NAME);
 
     }
     
