@@ -31,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 109,
+            'version' => '1.0.10',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -261,7 +261,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
         $details['Page name'] = $page->name;
         if ($page->namePrevious) {
-            $details['Page name' . $operation == "moved" ? '' : ' previous'] = $page->namePrevious;
+            $details['Page name' . ($operation == "moved" ? '' : ' previous')] = $page->namePrevious;
         }
 
         $details['Template name'] = $page->template->name;
