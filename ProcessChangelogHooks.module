@@ -31,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.11',
+            'version' => '1.0.12',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -173,7 +173,6 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $this->pages->addHook('renamed', $this, 'logPageEvent'); 
         $this->pages->addHook('deleted', $this, 'logPageEvent'); 
         $this->pages->addHook('saveReady', $this, 'logPageEvent'); 
-        $this->pages->addHookAfter('saveReady', $this, 'logPageEvent'); 
 
     }
 
@@ -206,22 +205,9 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         // don't log operations for repeaters or admin pages
         if ($page instanceof RepeaterPage || $page->template == "admin") return;
 
-        // grab operation from event; unpublished + published are special cases
-        // based on page's status when saveReady is triggered *for second time*
+        // grab operation from event
         $operation = $event->method;
-        if ($operation == "saveReady") {
-            static $saved = array();
-            if (in_array($page->id, $saved)) {
-                if ($page->id && !$page->isTrash() && $page->isChanged('status') && $page->is(Page::statusUnpublished)) {
-                    $operation = "unpublished";
-                } else if ($page->isChanged('status') && !$page->is(Page::statusUnpublished)) {
-                    $operation = "published";
-                } else return;
-            } else {
-                $saved[] = $page->id;
-                $operation = "edited";
-            }
-        }
+        if ($operation == "saveReady") $operation = "edited";
 
         // only continue if this operation is set to be logged
         if (!in_array($operation, $this->operations)) return;
@@ -236,8 +222,15 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                         $fields_edited[] = $field->name;
                     }
                 }
-                // only continue if at least one field has been changed
-                if (!count($fields_edited)) return;
+                // only continue if at least one field has been changed (or
+                // if status has changed trigger new event for that)
+                if (!count($fields_edited)) {
+                    if ($page->isChanged("status")) {
+                        $event->method = $page->is(Page::statusUnpublished) ? "unpublished" : "published";
+                        $this->logPageEvent($event);
+                    }
+                    return;
+                }
             } else return;
         } else if ($operation == "renamed") {
             // if previous parent is trash, page is being restored
@@ -285,6 +278,12 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         if ($this->log_caller && $caller = $this->getCaller()) $details['Caller'] = $caller;
 
         $this->insert($operation, $page->id, $page->template->id, $details);
+
+        if ($page->isChanged('status') && !in_array($operation, array("unpublished", "published"))) {
+            // if status has changed, log extra unpublished/published event
+            $event->method = $page->is(Page::statusUnpublished) ? "unpublished" : "published";
+            $this->logPageEvent($event);
+        }
 
     }
 
