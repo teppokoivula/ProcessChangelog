@@ -302,18 +302,18 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      */
     public function ___execute() {
 
-    	// render filters (this has to be done here because certain filter
-    	// choices may affect choices available when building SQL queries)
-    	$filters = $this->renderFilters();
+        // render filters (this has to be done here because certain filter
+        // choices may affect choices available when building SQL queries)
+        $filters = $this->renderFilters();
         
         // setup admin data table
         $table = $this->modules->get("MarkupAdminDataTable");
         $table->setEncodeEntities(false);
         $table->setClass('changelog');
         $table->headerRow(array(
-        	__('User'),
-        	__('When'),
-        	__('What'),
+            __('User'),
+            __('When'),
+            __('What'),
             '', // placeholder
             __('More')
         ));
@@ -322,7 +322,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $query = $this->buildQuery();
         $result = $this->db->query($query['query']);
         while ($row = $result->fetch_assoc()) {
-        	$table->row($this->parseTableRow($row));
+            $table->row($this->parseTableRow($row));
         }
 
         // if less than two matches were found, disable table sorting
@@ -486,8 +486,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $start = 0;
         $limit = isset($this->input->get->limit) ? (int) $this->input->get->limit : $this->row_limit;
         if ($limit && $total > $limit) {
-        	if ($this->input->get->page) $start = ($this->input->get->page-1)*$limit;
-        	if ($start > $total) $start = $total-$limit;
+            if ($this->input->get->page) $start = ($this->input->get->page-1)*$limit;
+            if ($start > $total) $start = $total-$limit;
         }
 
         // put together ORDER BY
@@ -502,10 +502,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // return SQL query along with some additional data
         return array(
-        	'query' => $query,
-        	'total' => $total,
-        	'start' => $start,
-        	'limit' => $limit,
+            'query' => $query,
+            'total' => $total,
+            'start' => $start,
+            'limit' => $limit,
         );
 
     }
@@ -518,21 +518,21 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     private function parseTableRow($row) {
 
         // empty container
-    	$data = array();
+        $data = array();
             
         // escape values (just a precaution really)
-    	foreach ($row as $key => $value) {
-    		if ($key != "data") $row[$key] = htmlentities($value);
-    	}
+        foreach ($row as $key => $value) {
+            if ($key != "data") $row[$key] = htmlentities($value);
+        }
 
         // check if user still exists
-    	$user = $this->users->get($row['user_id']);
-    	if (!$user->id) $data[] = $row['username'] . " <em>(" . __("deleted") . ")</em>";
-    	else $data[$user->name] = $this->config->urls->admin."access/users/edit/?id=".$user->id;
+        $user = $this->users->get($row['user_id']);
+        if (!$user->id) $data[] = $row['username'] . " <em>(" . __("deleted") . ")</em>";
+        else $data[$user->name] = $this->config->urls->admin."access/users/edit/?id=".$user->id;
 
         // timestamp (raw timestamp is hidden and only included to allow proper ordering with JavaScript)
-    	$date = ($this->date_format) ? date($this->date_format, strtotime($row['timestamp'])) : $row['timestamp'];
-    	$data[] = "<span>{$row['timestamp']}</span>$date";
+        $date = ($this->date_format) ? date($this->date_format, strtotime($row['timestamp'])) : $row['timestamp'];
+        $data[] = "<span>{$row['timestamp']}</span>$date";
 
         // translatable operations
         // __('added')
@@ -546,17 +546,17 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // __('unpublished')
 
         // variables we're going to need later
-    	$target = "";
-    	$template = "";
-    	$operation = $row['operation'];
-    	$page = $this->pages->get($row['pages_id']);
-    	$details = json_decode($row['data'], true);
-    	$key = $this->row_label == 'url' ? 'page URL' : 'page name';
+        $target = "";
+        $template = "";
+        $operation = $row['operation'];
+        $page = $this->pages->get($row['pages_id']);
+        $details = json_decode($row['data'], true);
+        $key = $this->row_label == 'url' ? 'page URL' : 'page name';
 
         // start putting together human-readable version of what happened
-    	switch ($operation) {
-    		case 'renamed':
-    		    $target .= $details["Previous $key"] 
+        switch ($operation) {
+            case 'renamed':
+                $target .= $details["Previous $key"] 
                         . " <strong>" . __("as") . "</strong> " // as // In context of a rename operation ("renamed old-page-name as new-page-name")
                         . $details[$key];
                 break;
@@ -569,24 +569,24 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         }
 
         if ($page->id) {
-        	$template = $page->template;
+            $template = $page->template;
             // append edit link to target
-        	$href = "{$this->config->urls->admin}page/edit/?id={$page->id}";
-        	$target .= " &nbsp; <a class='edit' href='$href'>" . __("edit page") . "</a></em>";
+            $href = "{$this->config->urls->admin}page/edit/?id={$page->id}";
+            $target .= " &nbsp; <a class='edit' href='$href'>" . __("edit page") . "</a></em>";
         } else if ($row["templates_id"] && $this->templates->get($row["templates_id"])) {
-        	$template = $this->templates->get($row["templates_id"]);
+            $template = $this->templates->get($row["templates_id"]);
         }
 
         if ($template) {
-        	$template_icons = "";
-        	if ($template->flags & Template::flagSystem) {
-        		$template_icons .= "<b class='icon system' title='" . __("System template") . "'></b>";
-        	}
-        	$template_label = $template->label ? $template->label : $template;
-        	$template = "<strong class='template'>$template_label$template_icons</strong> ";
+            $template_icons = "";
+            if ($template->flags & Template::flagSystem) {
+                $template_icons .= "<b class='icon system' title='" . __("System template") . "'></b>";
+            }
+            $template_label = $template->label ? $template->label : $template;
+            $template = "<strong class='template'>$template_label$template_icons</strong> ";
         } else {
             // template is unknown or has been deleted
-        	$template = "<strong class='deleted'>" . __("deleted") . "</strong>";
+            $template = "<strong class='deleted'>" . __("deleted") . "</strong>";
         }
 
         // "deleted" is only phrase used in multiple contexts
@@ -786,9 +786,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         $has_flag = $template_flags & constant("Template::flag$flag");
                         if ($negation && $has_flag || !$negation && !$has_flag) {
                             if ($this->input->get->flags == $options[$key]) {
-                            	// flag being removed from available options is
-                            	// used as search criteria; unset GET param too
-                            	unset($this->input->get->flags);
+                                // flag being removed from available options is
+                                // used as search criteria; unset GET param too
+                                unset($this->input->get->flags);
                             }
                             unset($options[$key]);
                         }
