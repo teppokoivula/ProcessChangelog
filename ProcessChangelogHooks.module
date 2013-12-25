@@ -17,7 +17,6 @@
  * http://processwire.com
  *
  */
- 
 class ProcessChangelogHooks extends WireData implements Module, ConfigurableModule {
 
     /**

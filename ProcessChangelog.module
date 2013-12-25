@@ -15,8 +15,7 @@
  * 
  * http://processwire.com
  *
- */
- 
+ */ 
 class ProcessChangelog extends Process implements ConfigurableModule {
     
     /**
