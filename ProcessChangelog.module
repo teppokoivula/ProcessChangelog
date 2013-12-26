@@ -399,7 +399,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         );
 
         foreach ($this->input->get as $key => $value) {
-            if ($value && in_array($key, $allowed_keys)) {
+            if (in_array($key, $allowed_keys) && $value != "") {
                 $operator = "=";
                 $value = $this->db->real_escape_string($value);
                 if (strpos($value, "!") === 0) {
