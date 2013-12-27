@@ -30,7 +30,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.12',
+            'version' => '1.0.13',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -178,10 +178,11 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     /**
      * Delete data older than given interval
      *
-     * @param string $interval Interval, defaults to data_max_age setting
+     * @param string|HookEvent $interval Interval, defaults to data_max_age setting
      */
     public function cleanup($interval = null) {
 
+        if ($interval instanceof HookEvent) $interval = $this->data_max_age;
         if (is_null($interval) && is_null($this->data_max_age)) return;
         else if (is_null($interval)) $interval = $this->data_max_age;
 
