@@ -14,7 +14,6 @@
  * Licensed under GNU/GPL v2, see LICENSE.TXT
  * 
  * http://processwire.com
- *
  */ 
 class ProcessChangelog extends Process implements ConfigurableModule {
     
@@ -102,19 +101,16 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     
     /**
      * Name of admin page related to this module
-     *
      */
     const PAGE_NAME = 'changelog';
 
     /**
      * Name of database table used by this module
-     *
      */
     protected $table_name;
 
     /**
      * Array of operations being logged
-     *
      */
     protected $operations = array();
 
@@ -124,7 +120,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * ProcessWire will automatically overwrite it with anything the user has specifically configured.
      * This is done in construct() rather than init() because ProcessWire populates config data after
      * construct(), but before init().
-     *
      */
     public function __construct() {
         // ProcessChangelogHooks module settings define which operations are
@@ -272,7 +267,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
     /**
      * Initialization function called before any execute functions
-     *
      */
     public function init() {
         parent::init();
@@ -296,7 +290,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
     /**
      * Executed when a page with this Process assigned is accessed
-      *
+     *
      * @return string
      */
     public function ___execute() {
@@ -380,8 +374,14 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      */
     private function buildQuery() {
 
+        // $joins and $where arrays are used to construct where clause and joins
+        // later. $where contains rules like "key = '$value'" and $joins actual
+        // joins, such as "LEFT JOIN table ON table.id = $id".
         $joins = array();
         $where = array();
+
+        // Allowed keys (GET params used to build queries) are defined here to
+        // make sure we're not letting any weird queries get past us.
         $allowed_keys = array(
             "id",
             "template",
@@ -394,6 +394,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             "date_from",
             "date_until",
         );
+
+        // Possible values for 'when' filter
         $allowed_intervals = array_values(
             $this->available_filters['when']['options']
         );
@@ -514,9 +516,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      *
      * @param array $row
      */
-    private function parseTableRow($row) {
+    private function parseTableRow(array $row) {
 
-        // empty container
+        // container
         $data = array();
             
         // escape values (just a precaution really)
@@ -905,7 +907,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * Called only when this module is installed
      *
      * Creates new page with this Process module assigned.
-     *
      */
     public function ___install() {
 
@@ -934,7 +935,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * Called only when this module is uninstalled
      *
      * Removes page associated with this Process module.
-     *
      */
     public function ___uninstall() {
 
