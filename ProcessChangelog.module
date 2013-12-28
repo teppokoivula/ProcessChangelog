@@ -28,7 +28,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 121,
+            'version' => 122,
             'singular' => true,
             'autoload' => false,
             'installs' => 'ProcessChangelogHooks'
@@ -369,10 +369,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     /**
      * Build SQL query for fetching changelog data from custom database table
      *
+     * @param array $group_by Fields to group results by, such as "id"
      * @return array Array with SQL query ('query'), total row count ('total'),
      *         start ('start') and limit ('limit')
      */
-    private function buildQuery() {
+    private function buildQuery(array $group_by = array()) {
 
         // $joins and $where arrays are used to construct where clause and joins
         // later. $where contains rules like "key = '$value'" and $joins actual
@@ -474,12 +475,14 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $where[] = "operation IN('" . str_replace(",", "','", $value) . "')";
         }
 
-        // put together WHERE clause and required JOINs
+        // put together WHERE clause, required JOINs and GROUP BY
         $where = $where ? "WHERE " . implode(" AND ", $where) : "";
         $joins = $joins ? " " . implode(" ", $joins) : "";
+        $group_by = $group_by ? "GROUP BY " . implode(", ", $group_by) : "";
 
         // total count of rows in database table
-        $sql = "SELECT COUNT(*) FROM {$this->table_name} $joins $where";
+        $count = $group_by ? "DISTINCT " . substr($group_by, 9) : "*";
+        $sql = "SELECT COUNT($count) FROM {$this->table_name} $joins $where";
         $row = $this->db->query($sql)->fetch_row();
         $total = reset($row);
 
@@ -498,7 +501,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $order_by = "ORDER BY $sort $sort_order, id DESC";
 
         // stick pieces together to construct final SQL query
-        $query = "SELECT {$this->table_name}.* FROM {$this->table_name} $joins $where $order_by";
+        $query = "SELECT {$this->table_name}.* FROM {$this->table_name} $joins $where $group_by $order_by";
         if ($limit) $query .= " LIMIT $start, $limit";
 
         // return SQL query along with some additional data
