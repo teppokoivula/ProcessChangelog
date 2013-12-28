@@ -28,7 +28,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 122,
+            'version' => 123,
             'singular' => true,
             'autoload' => false,
             'installs' => 'ProcessChangelogHooks'
@@ -125,14 +125,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // ProcessChangelogHooks module settings define which operations are
         // logged and the name of the database table they get stored into
         if ($this->modules->isInstalled("ProcessChangelogHooks")) {
-            $this->table_name = ProcessChangelogHooks::TABLE_NAME;
             $config = $this->modules->getModuleConfigData("ProcessChangelogHooks");
-            if (isset($config['operations'])) {
-                $this->operations = $config['operations'];
-            } else {
-                $defaults = $this->modules->get("ProcessChangelogHooks")->getDefaultData();
-                $this->operations = $defaults['operations'];
-            }
+            $defaults = $this->modules->get("ProcessChangelogHooks")->getDefaultData();
+            $this->table_name = ProcessChangelogHooks::TABLE_NAME;
+            $this->available_operations = $defaults['operations'];
+            $this->operations = isset($config['operations']) ? $config['operations'] : $defaults['operations'];
         }
         foreach(self::getDefaultData() as $key => $value) {
             if ($key == "available_filters") {
@@ -807,8 +804,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // Username
         if (in_array('username', $this->visible_filters)) {
             $options = array();
-            $operation = $this->db->real_escape_string($this->input->get->operation);
-            $where = ($operation) ? " WHERE operation = '$operation'" : "";
+            $where = "";
+            if (in_array($this->input->get->operation, $this->operations)) {
+                $where = " WHERE operation = '$operation'";
+            } else if ($this->operations != $this->available_operations) {
+                $where = " WHERE operation IN('" . implode("','", $this->operations) . "')";
+            }
             $sql = "SELECT DISTINCT username 
                     FROM {$this->table_name}
                     $where 
