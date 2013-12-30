@@ -9,6 +9,7 @@
  * For detailed information, installation instructions etc. see README.md.
  *
  * @copyright Copyright (c) 2013, Teppo Koivula
+ * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  *
  * ProcessWire 2.x 
  * Copyright (C) 2013 by Ryan Cramer 
@@ -30,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.13',
+            'version' => '1.0.14',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'

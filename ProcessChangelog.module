@@ -8,6 +8,7 @@
  * etc. see README.md.
  *
  * @copyright Copyright (c) 2013, Teppo Koivula
+ * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  *
  * ProcessWire 2.x 
  * Copyright (C) 2013 by Ryan Cramer 
@@ -28,7 +29,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 124,
+            'version' => 125,
             'singular' => true,
             'autoload' => false,
             'installs' => 'ProcessChangelogHooks'
