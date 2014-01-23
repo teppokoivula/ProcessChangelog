@@ -177,6 +177,38 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     }
 
     /**
+     * Initialization when $page is known
+     *
+     * Attach hook to ProcessPageEdit::buildFormSettings
+     *
+     */ 
+    public function ready() {
+        if($this->page->template == 'admin' && $this->page->process == 'ProcessPageEdit') {
+          $this->addHookAfter('ProcessPageEdit::buildFormSettings', $this, 'hookPageEdit');
+        }
+    }
+
+    /**
+     * Adds a Changelog section to the Settings tab in the page editor
+     *
+     */
+    public function hookPageEdit(HookEvent $event) {
+        $form = $event->return;
+        $process = $event->object;
+        $editPage = $process->getPage();
+        $result = $this->db->query("SELECT COUNT(*), MIN(timestamp) FROM " . self::TABLE_NAME . " WHERE pages_id=" . (int) $editPage->id);
+        list($numEdits, $timestamp) = $result->fetch_array();
+        $f = $this->modules->get('InputfieldMarkup');
+        $processPage = $this->pages->get('process=' . $this->modules->getModuleID('ProcessChangelog')); 
+        $f->label = $this->_('Changelog'); // Changelog field label
+        $out = sprintf($this->_n('%d edit since %s', '%d edits since %s', $numEdits), $numEdits, $timestamp); 
+        if($this->user->isSuperuser()) $out .= " - <a href='$processPage->url?pages_id=$editPage->id'>" . 
+                $this->_('View History') . "</a>";
+        $f->attr('value', "<p>$out</p>"); 
+        $form->append($f); 
+    }
+    
+    /**
      * Delete data older than given interval
      *
      * @param string|HookEvent $interval Interval, defaults to data_max_age setting
