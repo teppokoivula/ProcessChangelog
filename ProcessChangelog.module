@@ -922,7 +922,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $page->process = $this; 
 
         // insert page under setup at admin
-        $page->parent = $this->pages->get($this->config->adminRootPageID)->child('name=setup');
+        $page->parent = $this->pages->get($this->config->adminRootPageID)->child('name=setup, include=all');
 
         // make page title match module title
         $info = self::getModuleInfo();
