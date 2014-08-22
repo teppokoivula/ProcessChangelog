@@ -1,27 +1,27 @@
 $(document).ready(function() {
+    // translations etc. are defined in ProcessChangelog.module
+    var moduleConfig = config.ProcessChangelog;
     // more/less links
-    var more = $('span[data-term=more]').text();
-    var less = $('span[data-term=less]').text();
     $('table.changelog tr').each(function() {
         $(this)
             .find('td:eq(4)')
                 .addClass('details')
                 .wrapInner('<span></span>')
                 .find('span')
-                    .after('<a href="#" class="toggle-more">'+more+' <small>&or;</small></a>');
+                    .after('<a href="#" class="toggle-more">'+moduleConfig.i18n.more+' <small>&or;</small></a>');
     });
     // more/less functionality
     $('table.changelog th:eq(4)').css('width', '100px');
     $('table.changelog td.details a').toggle(function() {
         $(this)
-            .html(less + ' <small>&and;</small>')
+            .html(moduleConfig.i18n.less + ' <small>&and;</small>')
             .parents('tr:first')
                 .addClass('open')
                 .after('<tr class="more '+$(this).prev('span').find('.details').attr('class')+'"><td colspan="6"><div>'+$(this).prev('span').html()+'</div></td></tr>');
         return false;
     }, function() {
         $(this)
-            .html(more + ' <small>&or;</small>')
+            .html(moduleConfig.i18n.more + ' <small>&or;</small>')
             .parents('tr:first')
                 .removeClass('open')
                 .next('tr.more')
@@ -29,17 +29,15 @@ $(document).ready(function() {
         return false;
     });
     // remove link
-    var are_you_sure = $('span[data-term=are_you_sure]').text();
-    var remove_failed = $('span[data-term=remove_failed]').text();
     $('table.changelog').delegate('a.remove', 'click', function() {
-        if (confirm(are_you_sure)) {
+        if (confirm(moduleConfig.i18n.areYouSure)) {
             var $link = $(this);
             $.get($(this).attr('href'), function(data) {
                 data = $.parseJSON(data);
                 if (data && !data.error) {
                     $($link).parents('tr:first').fadeOut('500');
                 } else {
-                    alert(remove_failed);
+                    alert(moduleConfig.i18n.removeFailed);
                 }
             });
         }

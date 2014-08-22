@@ -7,7 +7,7 @@
  * pages of your site. For detailed information, installation instructions
  * etc. see README.md.
  *
- * @copyright Copyright (c) 2013, Teppo Koivula
+ * @copyright Copyright (c) 2013-2014, Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  *
  * ProcessWire 2.x 
@@ -29,7 +29,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 127,
+            'version' => 128,
             'singular' => true,
             'autoload' => false,
             'permission' => 'changelog',
@@ -330,20 +330,22 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         }
 
         // UI translations
-        $translations = "<div id='translations'>";
-        $translations .= "<span data-term='more'>" . __("more") . "</span>";
-        $translations .= "<span data-term='less'>" . __("less") . "</span>";
-        $translations .= "<span data-term='are_you_sure'>" . __("Are you sure?") . "</span>";
-        $translations .= "<span data-term='remove_failed'>" . __("Sorry, remove failed") . "</span>";
-        $translations .= "</div>";
+        $this->config->js($this->className(), array(
+            'i18n' => array(
+                'more' => __("more"),
+                'less' => __("less"),
+                'areYouSure' => __("Are you sure?"),
+                'removeFailed' => __("Sorry, remove failed"),
+            ),
+        ));
 
         // basic information about found rows
         $info = "<div id='info'><p>";
         $info .= sprintf(_n("One matching row found.", "%d matching rows found.", $query['total']), $query['total']);
         $info .= "</p></div>";
 
-        // return admin data table markup, pager and translations
-        return $filters . $info . $table->render() . $pager . $translations;
+        // return admin data table markup and pager
+        return $filters . $info . $table->render() . $pager;
 
     }
 
