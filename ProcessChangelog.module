@@ -29,7 +29,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => 129,
+            'version' => '1.2.10',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -116,6 +116,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * Array of operations being logged
      */
     protected $operations = array();
+
+    /**
+     * Array of template IDs, names and labels for caching purposes
+     */
+    protected $template_cache = array();
 
     /**
      * Populate the default config data
@@ -436,13 +441,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                     case "template":
                         $join = "LEFT OUTER JOIN pages ON pages.id = {$this->table_name}.pages_id";
                         if (!in_array($join, $joins)) $joins[] = $join;
-                        $template = $this->sanitizer->pageName($value);
-                        $templates_id = $this->templates->get($template)->id;
-                        if ($templates_id) {
-                            $where[] = "pages.templates_id $operator $templates_id"
-                                     . " OR {$this->table_name}.templates_id $operator $templates_id";
+                        $template = $this->getCacheTemplate($value);
+                        if ($template) {
+                            $where[] = "pages.templates_id $operator {$template['id']}"
+                                     . " OR {$this->table_name}.templates_id $operator {$template['id']}";
                         } else {
-                            throw new WireException(sprintf(__("Template not found: %s"), $template));
+                            throw new WireException(sprintf(__("Template not found: %s"), $this->sanitizer->pageName($value)));
                         }
                         break;
                     case "flags":
@@ -753,16 +757,16 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                                  . "ON templates.id = {$this->table_name}.templates_id "
                                  . "AND $and_on";
                 }
-            }                        
+            }
             $sql = "SELECT {$this->table_name}.templates_id FROM {$this->table_name} $join_flags";
             $result = $this->db->query($sql);
             if (!$result->num_rows || $result->num_rows > 1) {
                 $options[] = __("pages");
             }
             while ($row = $result->fetch_assoc()) {
-                $template = $this->templates->get($row['templates_id']);
-                $key = sprintf(__("%s pages"), $template->get("label|name")); // %s pages // %s will be replaced run-time by template
-                $options[$key] = $template->name;
+                $template = $this->getCacheTemplate(null, $row['templates_id']);
+                $key = sprintf(__("%s pages"), $template['label']); // %s pages // %s will be replaced run-time by template
+                $options[$key] = $template['name'];
             }
             $markup .= $this->renderSelect('template', $options);
         }
@@ -922,6 +926,51 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         return "<select name='$name'$disabled$attrs>$markup</select>";
 
+    }
+
+    /**
+     * Fetch template data from cache
+     * 
+     * If cache doesn't yet contain data for requested template, fill it in now
+     * and return newly stored data.
+     * 
+     * @param string $name Name of template
+     * @param int $id ID of template
+     * @return array Template data
+     */
+    private function getCacheTemplate($name = null, $id = null) {
+        $key = $id ? "[" . (int) $id . "]" : $name;
+        if (!$key) return null;
+        $template_data = isset($this->template_cache[$key]) ? $this->template_cache[$key] : null;
+        if (!$template_data) {
+            $id = $id ? (int) $id : null;
+            $name = $name ? $this->sanitizer->pageName($name) : null;
+            $template = $this->templates->get($id ? $id : "name=$name");
+            if ($template->id) {
+                $template_data = array(
+                    'id' => $template->id,
+                    'name' => $template->name,
+                    'label' => $template->get('label|name'),
+                );
+            } else {
+                $where = $id ? "templates_id = $id" : "data LIKE '%\"Template name\":\"$name\"%'";
+                $sql = "SELECT data, templates_id FROM {$this->table_name} WHERE $where LIMIT 1";
+                $result = $this->db->query($sql);
+                if ($result->num_rows) {
+                    $row = $result->fetch_assoc();
+                    $data = json_decode($row['data'], true);
+                    $template_name = isset($data['Template name']) ? $data['Template name'] : "[{$row['templates_id']}]";
+                    $template_data = array(
+                        'id' => $row['templates_id'],
+                        'name' => $template_name,
+                        'label' => $template_name,
+                    );
+                }
+            }
+            $this->template_cache["[{$row['templates_id']}"] = $template_data;
+            $this->template_cache[$template_name] = $template_data;
+        }
+        return $template_data;
     }
 
     /**
