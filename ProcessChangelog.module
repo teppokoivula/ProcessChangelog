@@ -29,7 +29,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.10',
+            'version' => '1.2.11',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -946,7 +946,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $id = $id ? (int) $id : null;
             $name = $name ? $this->sanitizer->pageName($name) : null;
             $template = $this->templates->get($id ? $id : "name=$name");
-            if ($template->id) {
+            if ($template && $template->id) {
                 $template_data = array(
                     'id' => $template->id,
                     'name' => $template->name,
@@ -967,8 +967,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                     );
                 }
             }
-            $this->template_cache["[{$row['templates_id']}"] = $template_data;
-            $this->template_cache[$template_name] = $template_data;
+            if (is_array($template_data)) {
+                $this->template_cache[$template_data['name']] = $template_data;
+                $this->template_cache[$template_data['id']] = $template_data;
+            }
         }
         return $template_data;
     }
