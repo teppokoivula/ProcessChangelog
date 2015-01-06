@@ -29,7 +29,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.13',
+            'version' => '1.2.14',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -524,6 +524,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * Parse MarkupAdminDataTable row from a row fetched from database
      *
      * @param array $row
+     * @return array
      */
     private function parseTableRow(array $row) {
 
@@ -538,7 +539,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // check if user still exists
         $user = $this->users->get($row['user_id']);
         if (!$user->id) $data[] = $row['username'] . " <em>(" . __("deleted") . ")</em>";
-        else $data[$user->name] = $this->config->urls->admin."access/users/edit/?id=".$user->id;
+        else $data[] = "<a href='{$this->config->urls->admin}access/users/edit/?id={$user->id}'>{$user->name}</a>";
 
         // timestamp (raw timestamp is hidden and only included to allow proper ordering with JavaScript)
         $date = ($this->date_format) ? date($this->date_format, strtotime($row['timestamp'])) : $row['timestamp'];
