@@ -157,7 +157,7 @@ table.changelog span {
 
 /* --- misc --- */
 
-ul.MarkupPagerNavCustom li.MarkupPagerNavSeparator,
-ul.MarkupPagerNavCustom li a {
+.content ul.MarkupPagerNavCustom li.MarkupPagerNavSeparator,
+.content ul.MarkupPagerNavCustom li a {
     margin-right: 3px;
 }

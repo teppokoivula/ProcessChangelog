@@ -31,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.1.0',
+            'version' => '1.1.1',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -196,8 +196,15 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $form = $event->return;
         $process = $event->object;
         $editPage = $process->getPage();
-        $result = $this->db->query("SELECT COUNT(*), MIN(timestamp) FROM " . self::TABLE_NAME . " WHERE pages_id=" . (int) $editPage->id);
-        list($num_edits, $timestamp) = $result->fetch_array();
+        try {
+            $query = $this->database->prepare("SELECT COUNT(*), MIN(timestamp) FROM " . self::TABLE_NAME . " WHERE pages_id=:id");
+            $query->bindValue(':id', $editPage->id, PDO::PARAM_INT); 
+            $query->execute();
+            list($num_edits, $timestamp) = $query->fetch(PDO::FETCH_NUM);
+        } catch(Exception $e) {
+            $this->error($e->getMessage());
+            $num_edits = 0;
+        }
         if ($num_edits) {
             $field = $this->modules->get('InputfieldMarkup');
             $processPage = $this->pages->get('process=' . $this->modules->getModuleID('ProcessChangelog'));
@@ -221,10 +228,14 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         if (is_null($interval) && is_null($this->data_max_age)) return;
         else if (is_null($interval)) $interval = $this->data_max_age;
 
-        $interval = $this->db->escape_string($interval);
+        // @todo check if $interval can be a bound param (not sure it can)
+        $interval = $this->database->escapeStr($interval);
         $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE timestamp < DATE_SUB(NOW(), INTERVAL $interval)";
-        $this->db->query($sql);
-
+        try {
+            $this->database->exec($sql);
+        } catch(Exception $e) {
+            $this->error($e->getMessage());
+        }
     }
 
     /**
@@ -361,7 +372,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
         $pages_id = (int) $pages_id;
         $templates_id = (int) $templates_id;
-        $user_id = $this->user->id;
+        $user_id = (int) $this->user->id;
         $username = $this->user->name;
 
         // validate and encode details to JSON
@@ -374,11 +385,21 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         } else $details = null;
 
         // insert new row into database
-        $sql_fields = "user_id, username, pages_id, templates_id, operation, data";
-        $sql_values = "$user_id, '$username', $pages_id, $templates_id, '$operation', '$details'";
-        $sql = "INSERT INTO " . self::TABLE_NAME . " ($sql_fields) VALUES ($sql_values)";
-        $this->db->query($sql);
-        
+        $sql = "INSERT INTO " . self::TABLE_NAME . " " . 
+               "(user_id, username, pages_id, templates_id, operation, data) VALUES " . 
+               "(:user_id, :username, :pages_id, :templates_id, :operation, :data) ";
+        try {
+            $query = $this->database->prepare($sql); 
+            $query->bindValue(':user_id', $user_id, PDO::PARAM_INT); 
+            $query->bindValue(':username', $username); 
+            $query->bindValue(':pages_id', $pages_id, PDO::PARAM_INT); 
+            $query->bindValue(':templates_id', $templates_id, PDO::PARAM_INT); 
+            $query->bindValue(':operation', $operation); 
+            $query->bindValue(':data', $details); 
+            $query->execute();
+        } catch(Exception $e) {
+            $this->error($e->getMessage()); 
+        }
     }
 
     /**
@@ -398,7 +419,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 default:
                     throw new WireException("Unrecognized database schema version: $this->schema_version");
             }
-            if ($sql && $this->db->query($sql)) {
+            if ($sql && $this->database->exec($sql)) {
                 $configData = $this->modules->getModuleConfigData($this);
                 $configData['schema_version'] = $this->schema_version;
                 $this->modules->saveModuleConfigData($this, $configData);
@@ -429,7 +450,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         ) ENGINE = MYISAM;
         ";
-        $this->db->query($sql);
+        $this->database->exec($sql);
 
         // tell the user that we've created new database table
         $this->message("Created Table: " . self::TABLE_NAME); 
@@ -444,7 +465,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      */
     public function ___uninstall() {
         $this->message("Deleting Table: " . self::TABLE_NAME);
-        $this->db->query("DROP TABLE IF EXISTS " . self::TABLE_NAME);
+        $this->database->exec("DROP TABLE IF EXISTS " . self::TABLE_NAME);
     }
     
 }
