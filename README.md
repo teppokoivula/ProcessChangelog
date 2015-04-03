@@ -2,11 +2,15 @@ Process Changelog Module
 ========================
 
 Changelog module for ProcessWire CMS/CMF.
-Copyright (c) 2013 Teppo Koivula
+Copyright (c) 2013-2015 Teppo Koivula
 
 This module keeps track of changes (edits, additions, removals etc.) on your
 site. It is not intended as a version control solution; rather than that, it's
 primary goal is to provide admin users with quick overview of changes.
+
+## Legacy branch
+
+This is the legacy branch, intended for use with ProcessWire 2.3.0 and earlier. For ProcessWire 2.3.1+, please use the [master branch](https://github.com/teppokoivula/ProcessChangelog/tree/master) instead.
 
 ## Installing
 
