@@ -8,6 +8,10 @@ This module keeps track of changes (edits, additions, removals etc.) on your
 site. It is not intended as a version control solution; rather than that, it's
 primary goal is to provide admin users with quick overview of changes.
 
+## Requirements
+
+Please note that the master branch of this module requires ProcessWire 2.3.1+. For earlier versions, please use the [legacy branch](https://github.com/teppokoivula/ProcessChangelog/tree/legacy) instead (though you might also want to consider updating your site).
+
 ## Installing
 
 Copy ProcessChangelog folder to your /site/modules/, go to Admin > Modules,
