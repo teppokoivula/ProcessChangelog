@@ -318,8 +318,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // fetch rows from database and add them to our data table
         $query = $this->buildQuery();
-        $result = $this->db->query($query['query']);
-        while ($row = $result->fetch_assoc()) {
+        $stmt = $this->database->prepare($query['query']); 
+        $stmt->execute();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $table->row($this->parseTableRow($row));
         }
 
@@ -364,8 +365,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // fetch rows from database
         $data = array();
         $query = $this->buildQuery();
-        $result = $this->db->query($query['query']);
-        while ($row = $result->fetch_assoc()) $data[] = $row;
+        $stmt = $this->database->prepare($query['query']);
+        $stmt->execute();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) $data[] = $row;
 
         // send header and output JSON
         header('Content-type: application/json');
@@ -411,7 +413,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         foreach ($this->input->get as $key => $value) {
             if (in_array($key, $allowed_keys) && $value != "") {
                 $operator = "=";
-                $value = $this->db->real_escape_string($value);
+                $value = $this->database->escapeStr($value);
                 if (strpos($value, "!") === 0) {
                     $operator = "!=";
                     $value = substr($value, 1);
@@ -477,7 +479,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // make sure that only operations being currently logged are visible,
         // even after selecting "all operations"
         if (!$this->input->get->operation) {
-            $value = $this->db->real_escape_string(implode(",", $this->operations));
+            $value = $this->database->escapeStr(implode(",", $this->operations));
             $where[] = "operation IN('" . str_replace(",", "','", $value) . "')";
         }
 
@@ -489,7 +491,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // total count of rows in database table
         $count = $group_by ? "DISTINCT " . substr($group_by, 9) : "*";
         $sql = "SELECT COUNT($count) FROM {$this->table_name} $joins $where";
-        $row = $this->db->query($sql)->fetch_row();
+        $stmt = $this->database->prepare($sql); 
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_NUM);
         $total = reset($row);
 
         // put together LIMIT
@@ -501,7 +505,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         }
 
         // put together ORDER BY
-        $sort = $this->input->get->sort ? $this->db->real_escape_string($this->input->get->sort) : "-timestamp";
+        $sort = $this->input->get->sort ? $this->database->escapeStr($this->input->get->sort) : "-timestamp";
         $sort_order = (strpos($sort, "-") === 0) ? "DESC" : "ASC";
         if ($sort_order == "DESC") $sort = substr($sort, 1);
         $order_by = "ORDER BY $sort $sort_order, id DESC";
@@ -726,8 +730,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         if ((int) $this->input->get->id != $this->input->get->id) return false;
 
         $id = (int) $this->input->get->id;
-        $sql = "DELETE FROM {$this->table_name} WHERE id = $id LIMIT 1";
-        $this->db->query($sql);
+        $sql = "DELETE FROM {$this->table_name} WHERE id=:id LIMIT 1";
+        $query = $this->database->prepare($sql); 
+        $query->bindValue(':id', $id, PDO::PARAM_INT); 
+        $query->execute();
 
         return true;
 
@@ -760,11 +766,13 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 }
             }
             $sql = "SELECT {$this->table_name}.templates_id FROM {$this->table_name} $join_flags";
-            $result = $this->db->query($sql);
-            if (!$result->num_rows || $result->num_rows > 1) {
+            $stmt = $this->database->prepare($sql); 
+            $stmt->execute(); 
+            $rowCount = $stmt->rowCount();
+            if (!$rowCount || $rowCount > 1) {
                 $options[] = __("pages");
             }
-            while ($row = $result->fetch_assoc()) {
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $template = $this->getCacheTemplate(null, $row['templates_id']);
                 $key = sprintf(__("%s pages"), $template['label']); // %s pages // %s will be replaced run-time by template
                 $options[$key] = $template['name'];
@@ -824,11 +832,13 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                     FROM {$this->table_name}
                     $where 
                     ORDER BY username DESC";
-            $result = $this->db->query($sql);
-            if (!$result->num_rows || $result->num_rows > 1) {
+            $stmt = $this->database->prepare($sql);
+            $stmt->execute();
+            $rowCount = $stmt->rowCount();
+            if (!$rowCount || $rowCount > 1) {
                 $options[] = __("by any user");
             }
-            while ($row = $result->fetch_assoc()) {
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $key = sprintf(__("by %s"), $row['username']); // by %s // %s will be replaced run-time by username
                 if (!in_array("operation", $this->visible_filters)) $key = sprintf(__("modified %s"), $key); // modified %s // %s will be replaced run-time with "by [username]"
                 $options[$key] = $row['username'];
@@ -956,9 +966,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             } else {
                 $where = $id ? "templates_id = $id" : "data LIKE '%\"Template name\":\"$name\"%'";
                 $sql = "SELECT data, templates_id FROM {$this->table_name} WHERE $where LIMIT 1";
-                $result = $this->db->query($sql);
-                if ($result->num_rows) {
-                    $row = $result->fetch_assoc();
+                $stmt = $this->database->prepare($sql);
+                $stmt->execute();
+                if ($stmt->rowCount()) {
+                    $row = $stmt->fetch(PDO::FETCH_ASSOC);
                     $data = json_decode($row['data'], true);
                     $template_name = isset($data['Template name']) ? $data['Template name'] : "[{$row['templates_id']}]";
                     $template_data = array(
