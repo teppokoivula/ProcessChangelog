@@ -31,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.1.1',
+            'version' => '1.1.2',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -419,7 +419,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 default:
                     throw new WireException("Unrecognized database schema version: $this->schema_version");
             }
-            if ($sql && $this->database->exec($sql)) {
+            if ($sql && $this->database->exec($sql) !== false) {
                 $configData = $this->modules->getModuleConfigData($this);
                 $configData['schema_version'] = $this->schema_version;
                 $this->modules->saveModuleConfigData($this, $configData);
