@@ -2,7 +2,7 @@ Process Changelog Module
 ========================
 
 Changelog module for ProcessWire CMS/CMF.
-Copyright (c) 2013 Teppo Koivula
+Copyright (c) 2013-2016 Teppo Koivula
 
 This module keeps track of changes (edits, additions, removals etc.) on your
 site. It is not intended as a version control solution; rather than that, it's
@@ -80,7 +80,7 @@ other data collection, both have their own settings:
 These are new features, fixes and improvements to current feature set planned
 for later releases:
 
-**1.3**
+**1.x**
 
 * usage statistics, possibly even graphs
 
