@@ -1,0 +1,87 @@
+<?php
+
+/**
+ * RSS feed for Process Changelog
+ *
+ * This module provides an optional RSS feed for the data collected by the
+ * ProcessChangelogHooks. RSS feeds can be accessed via a pre-defined URL
+ * and a key stored within the configuration settings of this module.
+ *
+ * @copyright 2016 Teppo Koivula
+ * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ */ 
+class ProcessChangelogRSS extends WireData implements Module, ConfigurableModule {
+    
+    /**
+     * Return information about this module
+     *
+     * @return array
+     */
+    public static function getModuleInfo() {
+        return array(
+            'title' => __('Changelog RSS'),
+            'summary' => __('Output an RSS feed from Process Changelog data'),
+            'href' => 'http://modules.processwire.com/modules/process-changelog/',
+            'author' => 'Teppo Koivula',
+            'version' => '0.9.0',
+            'singular' => true,
+            'autoload' => true,
+            'icon' => 'rss',
+            'requires' => 'ProcessChangelog',
+        ); 
+    }
+    
+    /**
+     * Module configuration
+     *
+     * @param array $data
+     * @return InputfieldWrapper
+     */
+    static public function getModuleConfigInputfields(array $data) {
+
+        // container for fields
+        $fields = new InputfieldWrapper();
+
+        // key
+        $field = wire("modules")->get("InputfieldText");
+        $field->name = "key";
+        $field->label = __("Key");
+        $field->description = __("Key required to view the public changelog RSS feed; if omitted, the feed won't be available. Please note that the key has to be at least 10 characters long.");
+        $field->notes = __("RSS feed is currently unavailable. Fill in a key and save module settings to see the feed URL.");
+        if (isset($data[$field->name]) && $key = $data[$field->name]) {
+            $feed_url = "http" . (wire('config')->https ? "s" : "") . "://" . wire('config')->httpHost . wire('config')->urls->root . "process-changelog-rss.xml?key=" . rawurlencode($key);
+            $field->notes = sprintf(__("URL of the RSS feed: %s"), $feed_url);
+            $field->value = $key;
+        }
+        $field->attr('minlength', 10);
+        $fields->add($field);
+
+        return $fields;
+        
+    }
+
+    /**
+     * Initialization function
+     *
+     * This function attachs required hooks.
+     *
+     */
+    public function init() {
+        if (strlen($this->key) && strlen($this->input->get->key) && $this->input->get->key == $this->key) {
+            $root = $this->config->urls->root ?: '/';
+            $feed = $root . 'process-changelog-rss.xml';
+            if (isset($_SERVER['REQUEST_URI']) && mb_substr(strtok($_SERVER['REQUEST_URI'], "?"), -strlen($feed)) == $feed) {
+                $this->addHookBefore("ProcessPageView::pageNotFound", $this, "renderRSS");
+            }
+        }
+    }
+
+    /**
+     * Render RSS feed
+     *
+     */
+    protected function renderRSS() {
+        $this->modules->getModule('ProcessChangelog', array('noPermissionCheck' => true))->executeRSS();
+    }
+
+}
