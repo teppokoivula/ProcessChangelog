@@ -7,14 +7,8 @@
  * pages of your site. For detailed information, installation instructions
  * etc. see README.md.
  *
- * @copyright Copyright (c) 2013-2014, Teppo Koivula
+ * @copyright 2013-2016 Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
- *
- * ProcessWire 2.x 
- * Copyright (C) 2013 by Ryan Cramer 
- * Licensed under GNU/GPL v2, see LICENSE.TXT
- * 
- * http://processwire.com
  */ 
 class ProcessChangelog extends Process implements ConfigurableModule {
     
@@ -29,7 +23,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.15',
+            'version' => '1.3.0',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -376,6 +370,46 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     }
 
     /**
+     * Executed when a page with this Process assigned is accessed with /RSS/
+     *
+     */
+    public function ___executeRSS() {
+        
+        // create rss element
+        $rss = new SimpleXMLElement('<rss/>');
+        $rss->addAttribute('version', '2.0');
+
+        // create channel eelment
+        $channel = $rss->addChild('channel');
+        $channel->addChild('title', __('Changelog'));
+        $channel->addChild('link', $this->input->httpUrl . ($_GET ? '?' . htmlentities($this->input->queryString) : ''));
+        $channel->addChild('description', __('An automatically generated changelog for this site.'));
+        
+        // fetch rows from database
+        $data = array();
+        $query = $this->buildQuery();
+        $stmt = $this->database->prepare($query['query']);
+        $stmt->execute();
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $item = $channel->addChild('item');
+            $item->addChild('title', $this->parseString($row));
+            if ($row['data']) {
+                $details = json_decode($row['data'], true);
+                $item->addChild('description', $this->renderDetails($row['operation'], $details));
+            } else {
+                $item->addChild('description', __("No data available."));
+            }
+            $item->addChild('link', 'http' . ($this->config->https ? 's' : '') . '://' . $this->config->httpHost . $this->config->urls->admin . 'page/edit/?id=' . (int) $row['pages_id']);
+            $item->addChild('pubDate', date('r', strtotime($row['timestamp'])));
+        }
+
+        // send header and output RSS
+        header('Content-type: application/rss+xml; charset=UTF-8');
+        exit($rss->asXML());
+
+    }
+
+    /**
      * Build SQL query for fetching changelog data from custom database table
      *
      * @param array $group_by Fields to group results by, such as "id"
@@ -617,6 +651,58 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $data[] = $details ? $this->renderDetails($operation, $details) : __("No data available.");
 
         return $data;
+
+    }
+
+    /**
+     * Parse string from a row fetched from database
+     *
+     * @param array $row
+     * @return string
+     */
+    private function parseString(array $row) {
+
+        $out = array();
+        
+        // escape values (just a precaution really)
+        foreach ($row as $key => $value) {
+            if ($key != "data") $row[$key] = htmlentities($value);
+        }
+
+        // user
+        $user = $this->users->get($row['user_id']);
+        $out[] = $user->id ? $user->name : $row['username'] . " (" . __("deleted") . ")";
+
+        // operation
+        $operation_i18n = __($row['operation']);
+        if ($row['operation'] == "deleted") $operation_i18n = _x($row['operation'], 'operation');
+        $out[] = $operation_i18n;
+        
+        // template
+        $template = "";
+        $page = $this->pages->get($row['pages_id']);
+        if ($page->id) {
+            $template = $page->template;
+        } else if ($row["templates_id"] && $this->templates->get($row["templates_id"])) {
+            $template = $this->templates->get($row["templates_id"]);
+        }
+        $out[] = $template ? ($template->label ?: $template) : __("Page");
+        
+        // target
+        $details = json_decode($row['data'], true);
+        $key = $this->row_label == 'url' ? 'page URL' : 'page name';
+        switch ($row['operation']) {
+            case 'renamed':
+                $out[] = $details["Previous $key"] . " " . __("as") . " " . $details[ucfirst($key)];
+                break;
+            case 'trashed':
+                $out[] = $details["Previous $key"] . " (" . $details[ucfirst($key)] . ")";
+                break;
+            default:
+                $out[] = $details[ucfirst($key)];
+        }
+
+        return implode(" ", $out);
 
     }
 
