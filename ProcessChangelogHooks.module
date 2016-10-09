@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.1.4',
+            'version' => '1.1.5',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -275,6 +275,25 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                         $event->method = $page->is(Page::statusUnpublished) ? "unpublished" : "published";
                         $this->logPageEvent($event);
                     }
+                    if ($this->modules->isInstalled("LanguageSupportPageNames")) {
+                        // if multi-language page names are enabled, we need to
+                        // fake a rename action when non-default name changes
+                        if (count($page->getChanges()) && $changes = $page->getChanges()) {
+                            foreach ($changes as $change) {
+                                if (strpos($change, "name") === 0 && preg_match("/^name([0-9]+)$/", $change, $matches)) {
+                                    $lang = $this->languages->get((int) $matches[1]);
+                                    if ($lang && $lang->id) {
+                                        $this->pages->uncache($page);
+                                        $event->pageNamePrevious = $this->pages->get($page->id)->get($change) ?: $page->name;
+                                        $event->pageName = $page->get($change);
+                                        $event->pageURL = $page->localUrl($lang);
+                                        $event->method = "renamed";
+                                        $this->logPageEvent($event);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     return;
                 }
             } else return;
@@ -298,17 +317,13 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
         if ($page->title) $details['Page title'] = $page->title;
 
-        $details['Page name'] = $page->name;
-        if ($page->namePrevious) {
-            $details[($operation == "moved" ? 'Page name' : 'Previous page name')] = $page->namePrevious;
-        }
+        $details['Page name'] = $event->pageName ?: $page->name;
+        $details[($operation == "moved" ? 'Page name' : 'Previous page name')] = $event->pageNamePrevious ?: $page->namePrevious;
 
         $details['Template name'] = $page->template->name;
-        if ($page->templatePrevious) {
-            $details['Previous template name'] = $page->templatePrevious->name;
-        }
+        if ($page->templatePrevious) $details['Previous template name'] = $page->templatePrevious->name;
 
-        $details['Page URL'] = $page->url;
+        $details['Page URL'] = $event->pageURL ?: $page->url;
         if ($page->parentPrevious && $operation != "edited") {
             // for pages being edited current or previous parent is irrelevant
             // data since changing parent will also trigger "moved" operation.
