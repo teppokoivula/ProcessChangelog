@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.1.5',
+            'version' => '1.1.6',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -173,6 +173,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $this->pages->addHook('renamed', $this, 'logPageEvent'); 
         $this->pages->addHook('deleted', $this, 'logPageEvent'); 
         $this->pages->addHook('saveReady', $this, 'logPageEvent'); 
+        $this->pages->addHook('saveFieldReady', $this, 'logPageEvent'); 
 
     }
 
@@ -247,13 +248,14 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     public function logPageEvent(HookEvent $event) {
 
         $page = $event->arguments[0];
+        $field = isset($event->arguments[1]) ? $event->arguments[1] : null;
 
         // don't log operations for repeaters or admin pages
         if ($page instanceof RepeaterPage || $page->template == "admin") return;
 
         // grab operation from event
         $operation = $event->method;
-        if ($operation == "saveReady") $operation = "edited";
+        if ($operation == "saveReady" || $operation == "saveFieldReady") $operation = "edited";
 
         // only continue if this operation is set to be logged
         if (!in_array($operation, $this->operations)) return;
@@ -263,9 +265,15 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             // skip new pages or pages being restored/trashed
             if (!$page->id || $page->parentPrevious) return;
             if ($page->isChanged()) {
-                foreach ($page->template->fields as $field) {
-                    if ($page->isChanged($field->name)) {
-                        $fields_edited[] = $field->name;
+                if ($field && $page->isChanged($field->name)) {
+                    // only one field was edited (saveFieldReady)
+                    $fields_edited[] = $field->name;
+                } else {
+                    // one or more fields were edited (saveReady)
+                    foreach ($page->template->fields as $field) {
+                        if ($page->isChanged($field->name)) {
+                            $fields_edited[] = $field->name;
+                        }
                     }
                 }
                 // only continue if at least one field has been changed (or
