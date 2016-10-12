@@ -5,45 +5,73 @@ Changelog module for ProcessWire CMS/CMF.
 Copyright (c) 2013-2016 Teppo Koivula
 
 This module keeps track of changes (edits, additions, removals etc.) on your
-site. It is not intended as a version control solution; rather than that, it's
-primary goal is to provide admin users with quick overview of changes.
+ProcessWire site. It is not intended as a version control solution: for that
+purpose there are other modules. The goal of this module is to provide admin
+users with a quick overview of sitewide changes.
 
 ## Requirements
 
-Please note that the master branch of this module requires ProcessWire 2.3.1+. For earlier versions, please use the [legacy branch](https://github.com/teppokoivula/ProcessChangelog/tree/legacy) instead (though you might also want to consider updating your site).
+The master branch of this module requires ProcessWire 2.3.1+. If you're running
+an earlier version of ProcessWire, you probably shoud consider updating it, but
+if that's not an option, please check out the legacy branch instead:
+
+https://github.com/teppokoivula/ProcessChangelog/tree/legacy
+
+Automatic cleanup (which is recommended) requires that you install the LazyCron
+module. While said modue is bundled with the core package, it is not installed
+by default. Without automatic cleanup your database can eventually become slow
+as more and more changelog data gets stored in it.
 
 ## Installing
 
-Copy ProcessChangelog folder to your /site/modules/, go to Admin > Modules,
-hit "Check for new modules" and install Process Changelog. Process Changelog
-Hooks module will be installed automatically with Process Changelog.
+This module is installed just like any other ProcessWire module: copy or clone
+the directory containing this module to your /site/modules/ directory, log in,
+go to Admin > Modules, click "Check for new modules", and install "Changelog".
 
-Note: this module requires ProcessWire 2.2 or newer. Automatic cleanup feature
-requires LazyCron module, which is included in ProcessWire core distribution.
-Automatic cleanup isn't required for this module to work but it's highly
-recommended to avoid cluttering custom database table used by Process
-Changelog with unnecessary / unwanted old rows.
+Process Changelog Hooks will be automatically installed with the main module,
+Process Changelog. Installing Process Changelog RSS is completely optional: if
+installed, it provides you with a publicly viewable RSS feed of the changes to
+your site. More details under heading "Changelog RSS feed".
 
 ## How to use
 
-During install a new Changelog page is created, placed by default under
-Admin > Settings. From there you'll find information about each change on
-public pages since this module was installed. Clicking *more* link at the
-end of each row reveals more information about that particular change.
+When you install this module, it creates a new page into the Admin called
+Changelog (Settings > Changelog). This page contains a list of changes to
+pages on the site since the moment this module was installed. By clicking
+the *more* link next to each row reveals more information about that
+particular change.
+
+In order to access the Changelog page, users need to a) be authenticated and
+b) have a role with the "changelog" permission *or* have the superuser role.
+While the changelog permission will be added automatically when this module
+is installed, it needs to be given to any applicable roles manually.
+
+### Changelog RSS feed
+
+This module provides two types of RSS feeds: one that can be accessed only by
+authenticated users via the Changelog page (/setup/changelog/rss/), and other
+which can be enabled by installing the optional Process Changelog RSS module,
+typing in a key to it's config settings, and accessing the feed via URL such
+as this: http://example.com/process-changelog-rss.xml?key=1234567890.
+
+Since the latter feed can be accessed via a public URL, please make sure that
+your key is as difficult to guess as possible (and never use key 1234567890).
+If you are unsure about whether you really need this feature, please leave
+the Process Changelog RSS module uninstalled.
 
 ## Settings
 
-This module provides couple of settings you should be aware of. Since this
-module actually consists of two modules, one of which handles view side and
-other data collection, both have their own settings:
+This module contains a bunch of settings you should be aware of. Settings can
+be defined via ProcessWire's native module configuration screen, and each of
+the bundled module's has it's own settings.
 
 ### Process Changelog
 
 **Date Format**
 
-* Defines how dates are formatted on Changelog page
-* See the PHP date function reference for information on how to customize
-  this setting: http://www.php.net/manual/en/function.date.php
+* Defines how dates are formatted on Changelog page. See the PHP date function
+  reference for information on how to customize this setting:
+  http://www.php.net/manual/en/function.date.php
 * Default: j.n.Y H:i
 
 **Row Limit**
@@ -56,6 +84,16 @@ other data collection, both have their own settings:
 * Defines which field will be used as row label (page identifier) on
   Changelog page
 * Default: Page name
+
+**Visible filters**
+
+* Defines which filters are visible on the Changelog page
+* Default: operation, username, when, date_range
+
+**Values for hidden filters**
+
+* Defines values used for filters that are not currently visible
+* Default: operation=all, flags=any, when=whenever
 
 ### Process Changelog Hooks
 
@@ -72,8 +110,16 @@ other data collection, both have their own settings:
 **Data Max Age**
 
 * Defines how long collected data is kept before being removed automatically.
-* Please note that automatic cleanup requires LazyCron module!
+  Please note that automatic cleanup requires LazyCron module!
 * Default: forever (no automatic cleanup)
+
+### Process Changelog RSS
+
+**Key**
+
+* Key required to view the public changelog RSS feed; if omitted, the feed won't
+  be available. Please note that the key has to be at least 10 characters long.
+* Default: null (feed not available)
 
 ## Roadmap
 
