@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.1.7',
+            'version' => '1.1.8',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog'
@@ -52,6 +52,8 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 "published" => __("published"),
                 "unpublished" => __("unpublished")
             ),
+            'log_caller' => null,
+            'data_max_age' => null,
             'schema_version' => 1,
         );
     }
@@ -229,7 +231,6 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         if (is_null($interval) && is_null($this->data_max_age)) return;
         else if (is_null($interval)) $interval = $this->data_max_age;
 
-        // @todo check if $interval can be a bound param (not sure it can)
         $interval = $this->database->escapeStr($interval);
         $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE timestamp < DATE_SUB(NOW(), INTERVAL $interval)";
         try {
