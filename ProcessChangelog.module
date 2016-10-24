@@ -23,7 +23,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.3.1',
+            'version' => '1.3.2',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -125,6 +125,17 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     protected $template_cache = array();
 
     /**
+     * Array of optional permissions
+     * 
+     * - If "changelog-remove" exists, user has to have it in order to remove
+     *   changelog rows. If not, every user with access to changelog can also
+     *   remove rows.
+     * 
+     * @var array
+     */
+    protected $optional_permissions = array();
+
+    /**
      * Populate the default config data
      *
      * ProcessWire will automatically overwrite it with anything the user has specifically configured.
@@ -152,7 +163,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             }
             $this->$key = $value;
         }
-
+        $this->optional_permissions = array(
+            'remove' => $this->permissions->get('changelog-remove'),
+        );
     }
 
     /**
@@ -302,6 +315,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      */
     public function ___execute() {
 
+        // make sure that we have a newish version of Font-Awesome loaded
+        if (version_compare($this->config->version, '3.0.18', '<')) {
+            $this->config->styles->add('//maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css');
+        }
+
         // render filters (this has to be done here because certain filter
         // choices may affect choices available when building SQL queries)
         $filters = $this->renderFilters();
@@ -314,7 +332,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             __('User'),
             __('When'),
             __('What'),
-            '', // placeholder
+            __('Remove'),
             __('More')
         ));
 
@@ -349,9 +367,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         ));
 
         // basic information about found rows
-        $info = "<div id='info'><p>";
+        $info = "<div id='info'><h2>";
         $info .= sprintf(_n("One matching row found.", "%d matching rows found.", $query['total']), $query['total']);
-        $info .= "</p></div>";
+        $info .= "</h2></div>";
 
         // return admin data table markup and pager
         return $filters . $info . $table->render() . $pager;
@@ -487,8 +505,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         if (!in_array($join, $joins)) $joins[] = $join;
                         $template = $this->getCacheTemplate($value);
                         if ($template) {
-                            $where[] = "pages.templates_id $operator {$template['id']}"
-                                     . " OR {$this->table_name}.templates_id $operator {$template['id']}";
+                            $where[] = "(pages.templates_id $operator {$template['id']}"
+                                     . " OR {$this->table_name}.templates_id $operator {$template['id']})";
                         } else {
                             throw new WireException(sprintf(__("Template not found: %s"), $this->sanitizer->pageName($value)));
                         }
@@ -582,14 +600,22 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             if ($key != "data") $row[$key] = htmlentities($value);
         }
 
-        // check if user still exists
-        $user = $this->users->get($row['user_id']);
-        if (!$user->id) $data[] = $row['username'] . " <em>(" . __("deleted") . ")</em>";
-        else $data[] = "<a href='{$this->config->urls->admin}access/users/edit/?id={$user->id}'>{$user->name}</a>";
+        if ($row['username'] == "guest") {
+            // guest user, no need to show an edit link
+            $data[] = "<span class='user guest'>" . __("guest") . "</span>";
+        } else {
+            // check if user still exists and if yes, provide an edit link
+            $user = $this->users->get($row['user_id']);
+            if ($user->id) {
+                $data[] = "<a href='{$this->config->urls->admin}access/users/edit/?id={$user->id}'>{$user->name}</a>";
+            } else {
+                $data[] = "<span title='" . __("deleted") . "'>" . $row['username'] . "</span>";
+            }
+        }
 
         // timestamp (raw timestamp is hidden and only included to allow proper ordering with JavaScript)
         $date = ($this->date_format) ? date($this->date_format, strtotime($row['timestamp'])) : $row['timestamp'];
-        $data[] = "<span>{$row['timestamp']}</span>$date";
+        $data[] = "<span class='hidden'>{$row['timestamp']}</span>$date";
 
         // translatable operations
         // __('added')
@@ -613,23 +639,25 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // start putting together human-readable version of what happened
         switch ($operation) {
             case 'renamed':
-                $target .= $details["Previous $key"] 
-                        . " <strong>" . __("as") . "</strong> " // as // In context of a rename operation ("renamed old-page-name as new-page-name")
-                        . $details[ucfirst($key)];
+                $target .= "<span>" . $details["Previous $key"] . "</span>"
+                        . " <strong>" . __("as") . "</strong>" // as // In context of a rename operation ("renamed old-page-name as new-page-name")
+                        . " <span>" . $details[ucfirst($key)] . "</span>";
                 break;
             case 'trashed':
-                $target .= $details["Previous $key"]
+                $target .= "<span>" . $details["Previous $key"] . "</span>"
                         . " <em>(" . $details[ucfirst($key)] . ")</em>";
                 break;
             default:
-                $target .= $details[ucfirst($key)];
+                $target .= "<span>" . $details[ucfirst($key)] . "</span>";
         }
 
         if ($page->id) {
             $template = $page->template;
-            // append edit link to target
-            $href = "{$this->config->urls->admin}page/edit/?id={$page->id}";
-            $target .= " &nbsp; <a class='edit' href='$href'>" . __("edit page") . "</a>";
+            if ($page->editable()) {
+                // append edit link to target
+                $href = "{$this->config->urls->admin}page/edit/?id={$page->id}";
+                $target .= " &nbsp; <a class='edit' href='$href'>" . __("edit page") . "</a>";
+            }
         } else if ($row["templates_id"] && $this->templates->get($row["templates_id"])) {
             $template = $this->templates->get($row["templates_id"]);
         }
@@ -640,7 +668,13 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 $template_icons .= "<b class='icon system' title='" . __("System template") . "'></b>";
             }
             $template_label = $template->label ? $template->label : $template;
-            $template = "<strong class='template'>$template_label$template_icons</strong> ";
+            if (in_array('template', $this->visible_filters)) {
+                $selected = $this->input->get->template == $template->name ? ' selected' : '';
+                $query_string = htmlentities(http_build_query(array_merge($this->input->get->getArray(), array('template' => $selected ? '' : $template->name))));
+                $template = "<a class='tag template{$selected}' href='?{$query_string}'>$template_label$template_icons</a> ";
+            } else {
+                $template = "<strong class='template'>$template_label$template_icons</strong> ";
+            }
         } else {
             // template is unknown or has been deleted
             $template = "<strong class='deleted'>" . __("deleted") . "</strong>";
@@ -650,10 +684,16 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         if ($operation != "deleted") $operation_i18n = __($operation);
         else $operation_i18n = _x($operation, 'operation');
 
-        $data[] = "<strong>$operation_i18n</strong> $template $target";
+        $selected = $this->input->get->operation == $operation ? ' selected' : '';
+        $query_string = htmlentities(http_build_query(array_merge($this->input->get->getArray(), array('operation' => $selected ? '' : $operation))));
+        $data[] = "<a class='tag{$selected}' href='?{$query_string}'>$operation_i18n</a> $template $target";
 
         // link for removing individual row
-        $data[] = "<a href='./delete/?id={$row['id']}' class='remove'>" . __("remove?") . "</a>";
+        if (!$this->optional_permissions['remove']->id || $this->user->hasPermission($this->optional_permissions['remove'])) {
+            $data[] = "<a href='./delete/?id={$row['id']}' class='remove'>" . __("remove?") . "</a>";
+        } else {
+            $data[] = "";
+        }
 
         // more details about page in question
         $data[] = $details ? $this->renderDetails($operation, $details) : __("No data available.");
@@ -816,21 +856,23 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
     /**
      * Executed when requesting removal of an individual row
-     *
+     * 
      * @return boolean
+     * @throws WirePermissionException if changelog-remove permission exists
+     *         but the current user doesn't have it.
      */
     public function ___executeDelete() {
-
-        if ((int) $this->input->get->id != $this->input->get->id) return false;
-
-        $id = (int) $this->input->get->id;
-        $sql = "DELETE FROM {$this->table_name} WHERE id=:id LIMIT 1";
-        $query = $this->database->prepare($sql); 
-        $query->bindValue(':id', $id, PDO::PARAM_INT); 
-        $query->execute();
-
-        return true;
-
+        if (!$this->optional_permissions['remove']->id || $this->user->hasPermission($this->optional_permissions['remove'])) {
+            if ((int) $this->input->get->id != $this->input->get->id) return false;
+            $id = (int) $this->input->get->id;
+            $sql = "DELETE FROM {$this->table_name} WHERE id=:id LIMIT 1";
+            $query = $this->database->prepare($sql); 
+            $query->bindValue(':id', $id, PDO::PARAM_INT); 
+            $query->execute();
+            return true;
+        } else {
+            throw new WirePermissionException(__("You do not have the permission required by this action."));
+        }
     }
 
     /**
@@ -933,8 +975,14 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 $options[] = __("by any user");
             }
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $key = sprintf(__("by %s"), $row['username']); // by %s // %s will be replaced run-time by username
-                if (!in_array("operation", $this->visible_filters)) $key = sprintf(__("modified %s"), $key); // modified %s // %s will be replaced run-time with "by [username]"
+                if ($row['username'] == "guest") {
+                    $key = __("by guest");
+                } else {
+                    $key = sprintf(__("by %s"), $row['username']); // by %s // %s will be replaced run-time by username
+                }
+                if (!in_array("operation", $this->visible_filters)) {
+                    $key = sprintf(__("modified %s"), $key); // modified %s // %s will be replaced run-time with "by [username]"
+                }
                 $options[$key] = $row['username'];
             }
             $markup .= $this->renderSelect('username', $options);

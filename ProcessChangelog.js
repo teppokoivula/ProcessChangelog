@@ -6,7 +6,7 @@ $(document).ready(function() {
         $(this)
             .find('td:eq(4)')
                 .addClass('details')
-                .wrapInner('<span></span>')
+                .wrapInner('<span class="hidden"></span>')
                 .find('span')
                     .after('<a href="#" class="toggle-more">'+moduleConfig.i18n.more+' <small>&or;</small></a>');
     });
@@ -17,7 +17,7 @@ $(document).ready(function() {
             .html(moduleConfig.i18n.less + ' <small>&and;</small>')
             .parents('tr:first')
                 .addClass('open')
-                .after('<tr class="more '+$(this).prev('span').find('.details').attr('class')+'"><td colspan="6"><div>'+$(this).prev('span').html()+'</div></td></tr>');
+                .after('<tr class="more '+$(this).prev('span.hidden').find('.details').attr('class')+'"><td colspan="6"><div>'+$(this).prev('span.hidden').html()+'</div></td></tr>');
         return false;
     }, function() {
         $(this)

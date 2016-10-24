@@ -25,16 +25,47 @@ table.changelog em {
     color: #bbb;
 }
 
+table.changelog a.tag,
+table.changelog a.tag:hover,
 table.changelog strong {
     color: #fff;
-    padding: 0 5px;
-    margin: 0 3px 0 0;
-    border-radius: 3px;
+    padding: 4px 10px;
+    margin: 0 2px 0 0;
+    border-radius: 2px;
+    font-weight: normal;
     background: #6195ba;
     display: inline-block;
-    text-shadow: 0 1px 0 rgba(0,0,0,0.2);
+    transition: opacity 0.2s;
 }
 
+table.changelog a.tag::before {
+    font-family: FontAwesome;
+    display: inline-block;
+    opacity: 0.6;
+    width: 1.2em;
+}
+
+table.changelog a.tag.selected::before {
+    content: '\f046';
+}
+
+table.changelog a.tag:not(.selected)::before {
+    content: '\f096';
+}
+
+table.changelog a.tag:hover {
+    opacity: 0.8;
+}
+
+table.changelog span {
+    display: inline-block;
+}
+
+table.changelog span:not(.user):not(.hidden) {
+    padding: 4px 10px;
+}
+
+table.changelog a.tag.template,
 table.changelog strong.template {
     background: #dd2680;
 }
@@ -66,6 +97,36 @@ table.changelog small {
 table.changelog tr {
     line-height: 2em;
     display: table-row;
+    border-bottom: 1px solid #eaf0f2;
+}
+
+table.changelog tr td,
+table.changelog tr th {
+    border: 0 !important;
+    vertical-align: middle;
+}
+
+table.AdminDataList.changelog tr td:first-child a {
+    font-weight: normal;
+}
+
+table.AdminDataList.changelog tr td:first-child a::before,
+table.AdminDataList.changelog tr td:first-child span::before {
+    font-family: FontAwesome;
+    padding-right: 0.5em;
+}
+
+table.AdminDataList.changelog tr td:first-child a::before {
+    content: '\f007';
+}
+
+table.AdminDataList.changelog tr td:first-child span::before {
+    content: '\f235';
+    color: #8a8a8a;
+}
+
+table.AdminDataList.changelog tr td:first-child span.guest::before {
+    content: '\f21b';
 }
 
 table.changelog tr.open td {
@@ -80,14 +141,19 @@ table.changelog tr.more td {
     border: 0;
 }
 
+table.changelog tr.more > td {
+    padding: 0;
+}
+
 table.changelog tr.more div {
-    color: #6195ba;
+    margin: 1em 0;
+    color: #2f4248;
     font-size: 0.85em;
-    border-radius: 5px;
-    border: 1px solid #dbe3e5;
-    padding: 8px 10px 14px 55px;
-    text-shadow: 1px 1px 0 #f1f8fa;
-    background: url('img/desktop.png') 10px 10px no-repeat #e9eff1;
+    border-radius: 2px;
+    position: relative;
+    background: #e9eff1;
+    border: 1px solid #d7e2e6;
+    padding: 1.25em 1em 1.25em 6em;
 }
 
 table.changelog tr.more:hover td,
@@ -95,33 +161,65 @@ table.changelog tr.more:hover th {
     background: transparent;
 }
 
-table.changelog tr.more:hover div tr td,
-table.changelog tr.more:hover div tr th {
-    background: #e9eff1;
+table.changelog tr.more div::before {
+    top: 0.5em;
+    left: 0.5em;
+    color: #2f4248;
+    font-size: 3em;
+    content: '\f040';
+    position: absolute;
+    font-family: FontAwesome;
 }
 
-table.changelog tr#device-type td:first-letter {
-    text-transform: uppercase;
+table.changelog tr.more.icon-added div::before {
+    content: '\f067';
 }
 
-table.changelog tr.more.icon-added div { background-image: url('img/added.png'); }
-table.changelog tr.more.icon-moved div { background-image: url('img/moved.png'); }
-table.changelog tr.more.icon-edited div { background-image: url('img/edited.png'); }
-table.changelog tr.more.icon-trashed div { background-image: url('img/trashed.png'); }
-table.changelog tr.more.icon-renamed div { background-image: url('img/renamed.png'); }
-table.changelog tr.more.icon-deleted div { background-image: url('img/deleted.png'); }
-table.changelog tr.more.icon-restored div { background-image: url('img/restored.png'); }
-table.changelog tr.more.icon-published div { background-image: url('img/published.png'); }
-table.changelog tr.more.icon-unpublished div { background-image: url('img/unpublished.png'); }
+table.changelog tr.more.icon-moved div::before {
+    content: '\f0b2';
+}
+
+table.changelog tr.more.icon-trashed div::before {
+    content: '\f014';
+}
+
+table.changelog tr.more.icon-renamed div::before {
+    content: '\f1dc';
+}
+
+table.changelog tr.more.icon-deleted div::before {
+    content: '\f12d';
+}
+
+table.changelog tr.more.icon-restored div::before {
+    content: '\f0e2';
+}
+
+table.changelog tr.more.icon-published div::before {
+    content: '\f135';
+}
+
+table.changelog tr.more.icon-unpublished div::before {
+    content: '\f05e';
+}
 
 table.changelog tr.more table {
     margin: 0;
+    width: 100%;
     display: table;
+}
+
+table.changelog tr.more table tr {
+    border-bottom: 1px solid #dcdfe0;
+}
+
+table.changelog tr.more table tr:last-child {
+    border-bottom: 0;
 }
 
 table.changelog tr.more table th,
 table.changelog tr.more table td {
-    padding-right: 20px;
+    padding: 0.5em 1em;
     border-bottom: 0;
     font-size: 1em;
 }
@@ -130,11 +228,26 @@ table.changelog tr.more table th {
     color: #777 !important;
     text-decoration: none;
     cursor: auto;
+    width: 20%;
 }
 
+table.changelog thead th:nth-child(4),
 table.changelog a.remove,
 table.changelog a.edit {
     visibility: hidden;
+}
+
+@media only screen and (max-width: 767px) {
+    table.AdminDataTableResponsive.changelog thead th:nth-child(4),
+    table.AdminDataTableResponsive.changelog a.remove,
+    table.AdminDataTableResponsive.changelog a.edit {
+        visibility: visible;
+        display: inline-block;
+    }
+    table.AdminDataTableResponsive.changelog a.tag,
+    table.AdminDataTableResponsive.changelog strong {
+        margin-bottom: 4px;
+    }
 }
 
 table.changelog tr:hover a.remove,
@@ -151,7 +264,7 @@ table.changelog tr a.edit:hover {
     opacity: 1;
 }
 
-table.changelog span {
+table.changelog span.hidden {
     display: none;
 }
 
