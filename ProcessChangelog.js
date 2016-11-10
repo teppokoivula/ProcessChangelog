@@ -29,7 +29,7 @@ $(document).ready(function() {
         return false;
     });
     // remove link
-    $('table.changelog').delegate('a.remove', 'click', function() {
+    $('table.changelog').delegate('a.remove-row', 'click', function() {
         if (confirm(moduleConfig.i18n.areYouSure)) {
             var $link = $(this);
             $.get($(this).attr('href'), function(data) {

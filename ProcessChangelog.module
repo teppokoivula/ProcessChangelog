@@ -23,7 +23,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.3.2',
+            'version' => '1.3.3',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -329,8 +329,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $table->setEncodeEntities(false);
         $table->setClass('changelog');
         $table->headerRow(array(
-            __('User'),
             __('When'),
+            __('Who'),
             __('What'),
             __('Remove'),
             __('More')
@@ -600,6 +600,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             if ($key != "data") $row[$key] = htmlentities($value);
         }
 
+        // timestamp (raw timestamp is hidden and only included to allow proper sorting with JavaScript)
+        $date = ($this->date_format) ? date($this->date_format, strtotime($row['timestamp'])) : $row['timestamp'];
+        $data[] = "<span class='hidden'>{$row['timestamp']}</span>$date";
+
         if ($row['username'] == "guest") {
             // guest user, no need to show an edit link
             $data[] = "<span class='user guest'>" . __("guest") . "</span>";
@@ -607,15 +611,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             // check if user still exists and if yes, provide an edit link
             $user = $this->users->get($row['user_id']);
             if ($user->id) {
-                $data[] = "<a href='{$this->config->urls->admin}access/users/edit/?id={$user->id}'>{$user->name}</a>";
+                $data[] = "<a class='user' href='{$this->config->urls->admin}access/users/edit/?id={$user->id}'>{$user->name}</a>";
             } else {
-                $data[] = "<span title='" . __("deleted") . "'>" . $row['username'] . "</span>";
+                $data[] = "<span class='user deleted' title='" . __("deleted") . "'>" . $row['username'] . "</span>";
             }
         }
-
-        // timestamp (raw timestamp is hidden and only included to allow proper ordering with JavaScript)
-        $date = ($this->date_format) ? date($this->date_format, strtotime($row['timestamp'])) : $row['timestamp'];
-        $data[] = "<span class='hidden'>{$row['timestamp']}</span>$date";
 
         // translatable operations
         // __('added')
@@ -639,16 +639,15 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // start putting together human-readable version of what happened
         switch ($operation) {
             case 'renamed':
-                $target .= "<span>" . $details["Previous $key"] . "</span>"
+                $target .= "<span class='page'>" . $details["Previous $key"] . "</span>"
                         . " <strong>" . __("as") . "</strong>" // as // In context of a rename operation ("renamed old-page-name as new-page-name")
-                        . " <span>" . $details[ucfirst($key)] . "</span>";
+                        . " <span class='page'>" . $details[ucfirst($key)] . "</span>";
                 break;
             case 'trashed':
-                $target .= "<span>" . $details["Previous $key"] . "</span>"
-                        . " <em>(" . $details[ucfirst($key)] . ")</em>";
+                $target .= "<span class='page'>" . $details["Previous $key"] . " <i class='fa fa-arrow-right'></i> " . $details[ucfirst($key)] . "</span>";
                 break;
             default:
-                $target .= "<span>" . $details[ucfirst($key)] . "</span>";
+                $target .= "<span class='page'>" . $details[ucfirst($key)] . "</span>";
         }
 
         if ($page->id) {
@@ -656,7 +655,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             if ($page->editable()) {
                 // append edit link to target
                 $href = "{$this->config->urls->admin}page/edit/?id={$page->id}";
-                $target .= " &nbsp; <a class='edit' href='$href'>" . __("edit page") . "</a>";
+                $target .= " &nbsp; <a class='action edit-page' href='{$href}'>" . __("edit page") . "</a>";
             }
         } else if ($row["templates_id"] && $this->templates->get($row["templates_id"])) {
             $template = $this->templates->get($row["templates_id"]);
@@ -671,9 +670,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             if (in_array('template', $this->visible_filters)) {
                 $selected = $this->input->get->template == $template->name ? ' selected' : '';
                 $query_string = htmlentities(http_build_query(array_merge($this->input->get->getArray(), array('template' => $selected ? '' : $template->name))));
-                $template = "<a class='tag template{$selected}' href='?{$query_string}'>$template_label$template_icons</a> ";
+                $template = "<a class='tag template{$selected}' href='?{$query_string}'>{$template_label}{$template_icons}</a> ";
             } else {
-                $template = "<strong class='template'>$template_label$template_icons</strong> ";
+                $template = "<strong class='template'>{$template_label}{$template_icons}</strong> ";
             }
         } else {
             // template is unknown or has been deleted
@@ -686,11 +685,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         $selected = $this->input->get->operation == $operation ? ' selected' : '';
         $query_string = htmlentities(http_build_query(array_merge($this->input->get->getArray(), array('operation' => $selected ? '' : $operation))));
-        $data[] = "<a class='tag{$selected}' href='?{$query_string}'>$operation_i18n</a> $template $target";
+        $data[] = "<a class='tag{$selected}' href='?{$query_string}'>{$operation_i18n}</a> {$template} {$target}";
 
         // link for removing individual row
         if (!$this->optional_permissions['remove']->id || $this->user->hasPermission($this->optional_permissions['remove'])) {
-            $data[] = "<a href='./delete/?id={$row['id']}' class='remove'>" . __("remove?") . "</a>";
+            $data[] = "<a href='./delete/?id={$row['id']}' class='action remove-row'>" . __("remove?") . "</a>";
         } else {
             $data[] = "";
         }

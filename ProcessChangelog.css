@@ -25,6 +25,7 @@ table.changelog em {
     color: #bbb;
 }
 
+table.changelog .page,
 table.changelog a.tag,
 table.changelog a.tag:hover,
 table.changelog strong {
@@ -36,6 +37,12 @@ table.changelog strong {
     background: #6195ba;
     display: inline-block;
     transition: opacity 0.2s;
+}
+
+table.changelog .page {
+    color: #333;
+    background: #f0f3f7;
+    box-shadow: inset 0 0 1px rgba(0,0,0,0.25);
 }
 
 table.changelog a.tag::before {
@@ -106,27 +113,27 @@ table.changelog tr th {
     vertical-align: middle;
 }
 
-table.AdminDataList.changelog tr td:first-child a {
+table.AdminDataList.changelog tr td .user {
     font-weight: normal;
 }
 
-table.AdminDataList.changelog tr td:first-child a::before,
-table.AdminDataList.changelog tr td:first-child span::before {
+table.AdminDataList.changelog tr td .user::before {
     font-family: FontAwesome;
     padding-right: 0.5em;
 }
 
-table.AdminDataList.changelog tr td:first-child a::before {
+table.AdminDataList.changelog tr td .user::before {
     content: '\f007';
 }
 
-table.AdminDataList.changelog tr td:first-child span::before {
+table.AdminDataList.changelog tr td .user.deleted::before {
     content: '\f235';
     color: #8a8a8a;
 }
 
-table.AdminDataList.changelog tr td:first-child span.guest::before {
+table.AdminDataList.changelog tr td .user.guest::before {
     content: '\f21b';
+    color: #8a8a8a;
 }
 
 table.changelog tr.open td {
@@ -232,15 +239,13 @@ table.changelog tr.more table th {
 }
 
 table.changelog thead th:nth-child(4),
-table.changelog a.remove,
-table.changelog a.edit {
+table.changelog a.action {
     visibility: hidden;
 }
 
 @media only screen and (max-width: 767px) {
     table.AdminDataTableResponsive.changelog thead th:nth-child(4),
-    table.AdminDataTableResponsive.changelog a.remove,
-    table.AdminDataTableResponsive.changelog a.edit {
+    table.AdminDataTableResponsive.changelog a.action {
         visibility: visible;
         display: inline-block;
     }
@@ -250,16 +255,13 @@ table.changelog a.edit {
     }
 }
 
-table.changelog tr:hover a.remove,
-table.changelog tr:hover a.edit {
+table.changelog tr:hover a.action {
     visibility: visible;
     opacity: 0.33;
 }
 
-table.changelog tr.open a.remove,
-table.changelog tr a.remove:hover,
-table.changelog tr.open a.edit,
-table.changelog tr a.edit:hover {
+table.changelog tr.open a.action,
+table.changelog tr a.action:hover {
     visibility: visible;
     opacity: 1;
 }
