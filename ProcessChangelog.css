@@ -238,6 +238,10 @@ table.changelog tr.more table th {
     width: 20%;
 }
 
+table.changelog tr.more table th::after {
+    content: '';
+}
+
 table.changelog thead th:nth-child(4),
 table.changelog a.action {
     visibility: hidden;
