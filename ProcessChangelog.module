@@ -23,7 +23,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.3.3',
+            'version' => '1.3.4',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -868,7 +868,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $query = $this->database->prepare($sql); 
             $query->bindValue(':id', $id, PDO::PARAM_INT); 
             $query->execute();
-            return true;
+            return 1;
         } else {
             throw new WirePermissionException(__("You do not have the permission required by this action."));
         }
