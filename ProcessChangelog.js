@@ -1,76 +1,104 @@
 $(document).ready(function() {
-    // translations etc. are defined in ProcessChangelog.module
-    var moduleConfig = config.ProcessChangelog;
-    // more/less links
-    $('table.changelog tr').each(function() {
-        $(this)
-            .find('td:eq(4)')
-                .addClass('details')
+    
+    var initChangelog = function() {
+        
+        var $table = $('table.changelog');
+        var $filters = $('form#filters');
+        
+        // more/less links
+        $table.find('tr').each(function() {
+            $(this)
+                .find('td:eq(4)')
                 .wrapInner('<span class="hidden"></span>')
-                .find('span')
-                    .after('<a href="#" class="toggle-more">'+moduleConfig.i18n.more+' <small>&or;</small></a>');
-    });
-    // more/less functionality
-    $('table.changelog th:eq(4)').css('width', '100px');
-    $('table.changelog td.details a').toggle(function() {
-        $(this)
-            .html(moduleConfig.i18n.less + ' <small>&and;</small>')
-            .parents('tr:first')
-                .addClass('open')
-                .after('<tr class="more '+$(this).prev('span.hidden').find('.details').attr('class')+'"><td colspan="6"><div>'+$(this).prev('span.hidden').html()+'</div></td></tr>');
-        return false;
-    }, function() {
-        $(this)
-            .html(moduleConfig.i18n.more + ' <small>&or;</small>')
-            .parents('tr:first')
-                .removeClass('open')
-                .next('tr.more')
-                    .remove();
-        return false;
-    });
-    // remove link
-    $('table.changelog').delegate('a.remove-row', 'click', function() {
-        if (confirm(moduleConfig.i18n.areYouSure)) {
-            var $link = $(this);
-            $.get($(this).attr('href'), function(data) {
-                data = $.parseJSON(data);
-                if (data && !data.error) {
-                    $($link).parents('tr:first').fadeOut('500');
-                } else {
-                    alert(moduleConfig.i18n.removeFailed);
-                }
-            });
+                .append('<a class="more">'+config.ProcessChangelog.i18n.more+'</a>');
+        });
+        
+        // more/less functionality
+        $table.on('click', 'a.more', function() {
+            var $tr = $(this).parents('tr:first').toggleClass('open');
+            $(this).text(config.ProcessChangelog.i18n[$tr.hasClass('open') ? 'less' : 'more']);
+            if ($tr.hasClass('open')) {
+                var colspan = $tr.find('> td').length;
+                var details = $(this).prev('.hidden').html();
+                $tr.after('<tr class="more"><td colspan="' + colspan + '"><div>' + details + '</div></td></tr>');
+            } else {
+                $tr.next('tr.more').remove();
+            }
+        });
+        
+        // remove link
+        $table.on('click', 'a.remove-row', function() {
+            if (confirm(config.ProcessChangelog.i18n.areYouSure)) {
+                var $link = $(this);
+                $.get($link.attr('href'), function(data) {
+                    data = $.parseJSON(data);
+                    if (data && !data.error) {
+                        $link.parents('tr:first').fadeOut('500');
+                    } else {
+                        alert(config.ProcessChangelog.i18n.removeFailed);
+                    }
+                });
+            }
+            return false;
+        });
+        
+        // hide extra info when ordering data
+        $table.on('click', 'th.tablesorter-header', function() {
+            $table.find('tr.open a.more').trigger('click');
+        });
+        
+        // when data is filtered by id and only one row exists, show info by default
+        if ($table.find('a.more').length == 1 && window.location.search.match(/[?&]id=/)) {
+            $table.find('a.more').trigger('click');
         }
-        return false;
-    });
-    // hide extra info when ordering data
-    $('table.changelog th.header').click(function() {
-        $('table.changelog tr.open a.toggle-more').click();
-    });
-    // when data is filtered by id and only one row exists, show info by default
-    var getp = window.location.search.replace("?", "");
-    if (getp.substr(0,3) == "id=" && $('a.toggle-more').length == 1) {
-        $('a.toggle-more').click();
+        
+        // filter form autosubmit
+        $filters.on('change', 'select, input', function() {
+            updateContent('?' + $filters.serialize());
+        });
+
+        // tag links
+        $table.on('click', 'a.tag', function(event) {
+            event.preventDefault();
+            updateContent($(this).attr('href'));
+        });
+        
+        // hide irrelevant options in filter form
+        var $when = $filters.find('select[name=when]');
+        if ($when.length && $when.attr('value') != "between") {
+            $filters.find('.changelog-datepicker')
+                .parent('div')
+                    .addClass('disabled')
+                    .end()
+                .attr('title', $filters.find('input[name=date_from]').attr('data-disabled-title'))
+                .attr('disabled', 'disabled');
+        }
+        
+        // init datepicker
+        $('.changelog-datepicker').each(function() {
+            var options = {
+                dateFormat: $(this).attr('data-dateformat'),
+                minDate: $(this).attr('data-mindate'),
+                maxDate: $(this).attr('data-maxdate')
+            };
+            $(this).datepicker(options);
+        });
+
+        // layout fix for filter fieldset label (required when content is updated via AJAX)
+        $(".Inputfield:not(.collapsed9) > .InputfieldHeader").addClass("InputfieldStateToggle");
+
     }
-    // filter form autosubmit
-    $('form#filters select, form#filters input').change(function() {
-        this.form.submit();
-    });
-    // hide nonrelevant options in filter form
-    var $when = $('form#filters select[name=when]');
-    if ($when.length && $when.attr('value') != "between") {
-        $('form#filters .changelog-datepicker')
-            .addClass('disabled')
-            .attr('title', $('form#filters input[name=date_from]').attr('data-disabled-title'))
-            .attr('disabled', 'disabled');
+    
+    // update content via AJAX
+    var updateContent = function(params) {
+        $('#info h2').append(' <i class="fa fa-spinner fa-spin"></i>');
+        $('table.changelog').parent().load(params, function() {
+            history.replaceState(null, null, params);
+            initChangelog();
+        });
     }
-    // datepicker
-    $('.changelog-datepicker').each(function() {
-        var options = {
-            dateFormat: $(this).attr('data-dateformat'),
-            minDate: $(this).attr('data-mindate'),
-            maxDate: $(this).attr('data-maxdate')
-        };
-        $(this).datepicker(options);
-    });
+
+    // init changelog
+    initChangelog();
+    
 });

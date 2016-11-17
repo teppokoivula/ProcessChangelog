@@ -23,7 +23,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.3.5',
+            'version' => '1.3.6',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -54,7 +54,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'available_filters' => array(
                 'operation' => array(
                     'label' => __("Operation"),
-                    'options' => array(__("All operations")),
+                    'options' => array(
+                        __("All operations"),
+                    ),
                     'translate' => true,
                 ),
                 'template' => array(
@@ -1004,7 +1006,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 $date_from = ($this->input->get->date_from) ? date('d.m.Y', strtotime($this->input->get->date_from)) : '';
                 $date_until = ($this->input->get->date_until) ? date('d.m.Y', strtotime($this->input->get->date_until)) : '';
                 $input = $this->modules->get("InputfieldText");
-                $markup .= "<input type='text'"
+                $markup .= "<div class='filter no-icon'>"
+                         . "<input type='text'"
                          . " value='$date_from'"
                          . " size='10'"
                          . " data-maxdate='+0D'"
@@ -1013,7 +1016,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                          . " data-disabled-title='$disabled_title'"
                          . " class='changelog-datepicker'"
                          . " />"
+                         . "</div>"
                          . " .. "
+                         . "<div class='filter no-icon'>"
                          . "<input type='text'"
                          . " value='$date_until'"
                          . " size='10'"
@@ -1021,7 +1026,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                          . " data-dateformat='dd.mm.yy'"
                          . " name='date_until'"
                          . " class='changelog-datepicker'"
-                         . " />";
+                         . " />"
+                         . "</div>";
             }
         }
 
@@ -1076,7 +1082,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $markup .= "<option$selected value='$value'>$text</option>";
         }
 
-        return "<select name='$name'$disabled$attrs>$markup</select>";
+        return "<div class='filter'$disabled><select name='$name'$disabled$attrs>$markup</select></div>";
 
     }
 

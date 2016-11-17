@@ -2,16 +2,53 @@
 
 form#filters select,
 form#filters .changelog-datepicker {
-    margin: 0 1% 0 0;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background: transparent;
+    border: 0;
+    position: relative;
+    padding: 0.5em 2.25em 0.5em 1em;
+    cursor: pointer;
 }
 
+form#filters select::-ms-expand {
+    display: none;
+}
+
+form#filters select:last-child,
 form#filters .changelog-datepicker {
     margin-right: 0;
 }
 
-form#filters select.disabled,
-form#filters .changelog-datepicker.disabled {
+form#filters div.filter.disabled {
     opacity: 0.5;
+}
+
+form#filters div.filter.disabled input {
+    cursor: default;
+}
+
+form#filters div.filter {
+    display: inline-block;
+    border-radius: 2px;
+    position: relative;
+    border: 1px solid rgba(0,0,0,0.25);
+    background: #fafafa;
+    background: linear-gradient(to bottom, #fafafa, #fff);
+    margin: 0.2em 0;
+}
+
+form#filters div.filter:not(.no-icon) {
+    margin-right: 1%;
+}
+
+form#filters div.filter:not(.no-icon)::before {
+    font-family: FontAwesome;
+    padding: 0.4em 0 0 0;
+    position: absolute;
+    content: '\f0d7';
+    right: 0.75em;
 }
 
 #ui-datepicker-div {
@@ -20,10 +57,6 @@ form#filters .changelog-datepicker.disabled {
 }
 
 /* --- changelog table --- */
-
-table.changelog em {
-    color: #bbb;
-}
 
 table.changelog .page,
 table.changelog a.tag,
@@ -97,10 +130,6 @@ table.changelog b.icon.system {
     background-position: 0 0;
 }
 
-table.changelog small {
-    font-size: 0.65em;
-}
-
 table.changelog tr {
     line-height: 2em;
     display: table-row;
@@ -111,6 +140,10 @@ table.changelog tr td,
 table.changelog tr th {
     border: 0 !important;
     vertical-align: middle;
+}
+
+table.changelog tr th:nth-child(5) {
+    width: 100px;
 }
 
 table.AdminDataList.changelog tr td .user {
@@ -138,6 +171,21 @@ table.AdminDataList.changelog tr td .user.guest::before {
 
 table.changelog tr.open td {
     border-bottom: 0;
+}
+
+table.changelog a.more {
+    cursor: pointer;
+    user-select: none;
+}
+
+table.changelog a.more::after {
+    font-family: FontAwesome;
+    padding-left: 0.5em;
+    content: '\f107';
+}
+
+table.changelog tr.open a.more::after {
+    content: '\f106';
 }
 
 table.changelog tr.more tr {
@@ -168,7 +216,7 @@ table.changelog tr.more:hover th {
     background: transparent;
 }
 
-table.changelog tr.more div::before {
+table.changelog tr.more table::before {
     top: 0.5em;
     left: 0.5em;
     color: #2f4248;
@@ -178,35 +226,35 @@ table.changelog tr.more div::before {
     font-family: FontAwesome;
 }
 
-table.changelog tr.more.icon-added div::before {
+table.changelog tr.more table.icon-added::before {
     content: '\f067';
 }
 
-table.changelog tr.more.icon-moved div::before {
+table.changelog tr.more table.icon-moved::before {
     content: '\f0b2';
 }
 
-table.changelog tr.more.icon-trashed div::before {
+table.changelog tr.more table.icon-trashed::before {
     content: '\f014';
 }
 
-table.changelog tr.more.icon-renamed div::before {
+table.changelog tr.more table.icon-renamed::before {
     content: '\f1dc';
 }
 
-table.changelog tr.more.icon-deleted div::before {
+table.changelog tr.more table.icon-deleted::before {
     content: '\f12d';
 }
 
-table.changelog tr.more.icon-restored div::before {
+table.changelog tr.more table.icon-restored::before {
     content: '\f0e2';
 }
 
-table.changelog tr.more.icon-published div::before {
+table.changelog tr.more table.icon-published::before {
     content: '\f135';
 }
 
-table.changelog tr.more.icon-unpublished div::before {
+table.changelog tr.more table.icon-unpublished::before {
     content: '\f05e';
 }
 
@@ -279,4 +327,8 @@ table.changelog span.hidden {
 .content ul.MarkupPagerNavCustom li.MarkupPagerNavSeparator,
 .content ul.MarkupPagerNavCustom li a {
     margin-right: 3px;
+}
+
+#info h2 i {
+    font-size: 1em !important;
 }
