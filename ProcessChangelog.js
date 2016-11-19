@@ -52,17 +52,28 @@ $(document).ready(function() {
             $table.find('a.more').trigger('click');
         }
         
-        // filter form autosubmit
+        // AJAX filter form
         $filters.on('change', 'select, input', function() {
             updateContent('?' + $filters.serialize());
         });
 
-        // tag links
+        // AJAX tag links
         $table.on('click', 'a.tag', function(event) {
             event.preventDefault();
             updateContent($(this).attr('href'));
         });
         
+        // AJAX pagination
+        $('.MarkupPagerNavCustom').on('click', 'a', function(event) {
+            event.preventDefault();
+            var params = $(this).attr('href');
+            $('html, body').animate({
+                scrollTop: $('#info').offset().top
+            }, 500, function() {
+                updateContent(params);
+            });
+        });
+            
         // hide irrelevant options in filter form
         var $when = $filters.find('select[name=when]');
         if ($when.length && $when.attr('value') != "between") {
@@ -91,6 +102,7 @@ $(document).ready(function() {
     
     // update content via AJAX
     var updateContent = function(params) {
+        if ($('#info h2 i.fa-spinner').length) return;
         $('#info h2').append(' <i class="fa fa-spinner fa-spin"></i>');
         $('table.changelog').parent().load(params, function() {
             history.replaceState(null, null, params);
