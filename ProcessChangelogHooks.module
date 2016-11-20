@@ -24,10 +24,10 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.1.8',
+            'version' => '1.1.9',
             'singular' => true,
             'autoload' => true,
-            'requires' => 'ProcessChangelog'
+            'requires' => 'ProcessChangelog',
         ); 
     }
 
@@ -50,7 +50,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 "deleted" => __("deleted"),
                 "restored" => __("restored"),
                 "published" => __("published"),
-                "unpublished" => __("unpublished")
+                "unpublished" => __("unpublished"),
             ),
             'log_caller' => null,
             'data_max_age' => null,
@@ -122,7 +122,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $field->addOptions(array(
             null => __("Disabled"),
             'external' => __("For external callers only (CLI and external applications)"),
-            'all' => __('For all callers (CLI, external applications and ProcessWire itself)')
+            'all' => __('For all callers (CLI, external applications and ProcessWire itself)'),
         ));
         $field->notes = __("This can be useful when trying to find out why certain change was triggered. On the other hand it adds to the size of your database table and slightly slows script execution, which is why it's disabled by default.");
         $field->value = isset($data[$field->name]) ? $data[$field->name] : null;
@@ -142,7 +142,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 '2 MONTH' => __('2 months'),
                 '3 MONTH' => __('3 months'),
                 '6 MONTH' => __('6 months'),
-                '1 YEAR' => __('1 year')
+                '1 YEAR' => __('1 year'),
             ));
             $field->notes = __("Leave empty to disable automatic cleanup.");
             $field->value = isset($data[$field->name]) ? $data[$field->name] : null;
@@ -156,18 +156,21 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     /**
      * Initialization function
      *
-     * This function attachs required hooks.
+     * This function attachs hooks used for change tracking, triggers periodical
+     * cleanups and checks if there's a database schema update available.
      *
      */
     public function init() {
 
-        // update database schema (if not the latest one yet)
+        // update the database schema (if not the latest one yet)
         if ($this->schema_version < self::SCHEMA_VERSION) {
             $this->updateDatabaseSchema();
         }
 
-        // remove expired rows daily
-        $this->addHook("LazyCron::everyDay", $this, 'cleanup');
+        // trigger cleanup once a day
+        if ($this->data_max_age) {
+            $this->addHook("LazyCron::everyDay", $this, 'cleanup');
+        }
 
         // add hooks that gather information and trigger insert
         $this->pages->addHook('added', $this, 'logPageEvent'); 
@@ -182,7 +185,8 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     /**
      * Initialization when $page is known
      *
-     * Attach hook to ProcessPageEdit::buildFormSettings
+     * Attach hook to ProcessPageEdit::buildFormSettings in order to display
+     * recent changes in the context of page editor.
      *
      */
     public function ready() {
@@ -212,16 +216,18 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             $field = $this->modules->get('InputfieldMarkup');
             $processPage = $this->pages->get('process=' . $this->modules->getModuleID('ProcessChangelog'));
             $field->label = $this->_('Changelog'); // Changelog field label
+            $field->icon = "code-fork";
             $out = sprintf($this->_n('%d edit since %s', '%d edits since %s', $num_edits), $num_edits, $timestamp);
-            if ($this->user->hasPermission('changelog')) $out .= " - <a href='$processPage->url?pages_id=$editPage->id'>"
-                                                  . $this->_('View History') . "</a>";
-            $field->attr('value', "<p>$out</p>");
+            if ($this->user->hasPermission('changelog')) {
+                $out .= " - <a href='{$processPage->url}?pages_id={$editPage->id}'>" . $this->_('View History') . "</a>";
+            }
+            $field->attr('value', "<p>{$out}</p>");
             $form->append($field);
         }
     }
     
     /**
-     * Delete data older than given interval
+     * Delete data older than defined interval
      *
      * @param string|HookEvent $interval Interval, defaults to data_max_age setting
      */
@@ -411,20 +417,20 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         } else $details = null;
 
         // insert new row into database
-        $sql = "INSERT INTO " . self::TABLE_NAME . " " . 
-               "(user_id, username, pages_id, templates_id, operation, data) VALUES " . 
+        $sql = "INSERT INTO " . self::TABLE_NAME . " " .
+               "(user_id, username, pages_id, templates_id, operation, data) VALUES " .
                "(:user_id, :username, :pages_id, :templates_id, :operation, :data) ";
         try {
             $query = $this->database->prepare($sql); 
-            $query->bindValue(':user_id', $user_id, PDO::PARAM_INT); 
-            $query->bindValue(':username', $username); 
-            $query->bindValue(':pages_id', $pages_id, PDO::PARAM_INT); 
-            $query->bindValue(':templates_id', $templates_id, PDO::PARAM_INT); 
-            $query->bindValue(':operation', $operation); 
-            $query->bindValue(':data', $details); 
+            $query->bindValue(':user_id', $user_id, PDO::PARAM_INT);
+            $query->bindValue(':username', $username, PDO::PARAM_STR);
+            $query->bindValue(':pages_id', $pages_id, PDO::PARAM_INT);
+            $query->bindValue(':templates_id', $templates_id, PDO::PARAM_INT);
+            $query->bindValue(':operation', $operation, PDO::PARAM_STR);
+            $query->bindValue(':data', $details, PDO::PARAM_STR);
             $query->execute();
         } catch(Exception $e) {
-            $this->error($e->getMessage()); 
+            $this->error($e->getMessage());
         }
     }
 
@@ -443,14 +449,14 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                     $sql = "ALTER TABLE " . self::TABLE_NAME . " ADD templates_id INT(10) UNSIGNED NOT NULL DEFAULT 0 AFTER pages_id";
                     break;
                 default:
-                    throw new WireException("Unrecognized database schema version: $this->schema_version");
+                    throw new WireException("Unrecognized database schema version: {$this->schema_version}");
             }
             if ($sql && $this->database->exec($sql) !== false) {
                 $configData = $this->modules->getModuleConfigData($this);
                 $configData['schema_version'] = $this->schema_version;
                 $this->modules->saveModuleConfigData($this, $configData);
             } else {
-                throw new WireException("Couldn't update database schema to version $this->schema_version");
+                throw new WireException("Couldn't update database schema to version {$this->schema_version}");
             }
         }
     }

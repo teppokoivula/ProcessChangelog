@@ -57,8 +57,8 @@ $(document).ready(function() {
             updateContent('?' + $filters.serialize());
         });
 
-        // AJAX tag links
-        $table.on('click', 'a.tag', function(event) {
+        // AJAX links
+        $table.parent().off('click.ajax').on('click.ajax', 'a.ajax', function(event) {
             event.preventDefault();
             updateContent($(this).attr('href'));
         });
