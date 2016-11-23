@@ -23,13 +23,20 @@ class ProcessChangelogRSS extends WireData implements Module, ConfigurableModule
             'summary' => __('Output an RSS feed from Process Changelog data'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '0.9.0',
+            'version' => '1.0.0',
             'singular' => true,
             'autoload' => true,
             'icon' => 'rss',
             'requires' => 'ProcessChangelog',
         ); 
     }
+    
+    /**
+     * Base filename for the RSS feed URL
+     * 
+     * @var string
+     */
+    const RSS_FILENAME = 'process-changelog-rss.xml';
     
     /**
      * Module configuration
@@ -49,11 +56,19 @@ class ProcessChangelogRSS extends WireData implements Module, ConfigurableModule
         $field->description = __("Key required to view the public changelog RSS feed; if omitted, the feed won't be available. Please note that the key has to be at least 10 characters long.");
         $field->notes = __("RSS feed is currently unavailable. Fill in a key and save module settings to see the feed URL.");
         if (isset($data[$field->name]) && $key = $data[$field->name]) {
-            $feed_url = "http" . (wire('config')->https ? "s" : "") . "://" . wire('config')->httpHost . wire('config')->urls->root . "process-changelog-rss.xml?key=" . rawurlencode($key);
+            $feed_url = "http" . (wire('config')->https ? "s" : "") . "://" . wire('config')->httpHost . wire('config')->urls->root . self::RSS_FILENAME . "?key=" . rawurlencode($key);
             $field->notes = sprintf(__("URL of the RSS feed: %s"), $feed_url);
             $field->value = $key;
         }
         $field->attr('minlength', 10);
+        $fields->add($field);
+
+        // show feed link on the Changelog page?
+        $field = wire("modules")->get("InputfieldCheckbox");
+        $field->name = "show_feed_link";
+        $field->label = __("Show feed link on the Changelog page");
+        $field->description = __("Check this option if you want to provide a link to the publicly viewable RSS feed on the Changelog page. This option is disabled by default as you may want to limit the number of users with access to the feed.");
+        $field->checked = isset($data[$field->name]) && $data[$field->name];
         $fields->add($field);
 
         return $fields;
@@ -67,11 +82,14 @@ class ProcessChangelogRSS extends WireData implements Module, ConfigurableModule
      *
      */
     public function init() {
-        if (strlen($this->key) && strlen($this->input->get->key) && $this->input->get->key == $this->key) {
-            $root = $this->config->urls->root ?: '/';
-            $feed = $root . 'process-changelog-rss.xml';
-            if (isset($_SERVER['REQUEST_URI']) && mb_substr(strtok($_SERVER['REQUEST_URI'], "?"), -strlen($feed)) == $feed) {
-                $this->addHookBefore("ProcessPageView::pageNotFound", $this, "renderRSS");
+        if (strlen($this->key)) {
+            $this->feed_url = "http" . ($this->config->https ? "s" : "") . "://" . $this->config->httpHost . $this->config->urls->root . self::RSS_FILENAME . "?key=" . rawurlencode($this->key);
+            if (strlen($this->input->get->key) && $this->input->get->key == $this->key) {
+                $root = $this->config->urls->root ?: '/';
+                $feed = $root . self::RSS_FILENAME;
+                if (isset($_SERVER['REQUEST_URI']) && mb_substr(strtok($_SERVER['REQUEST_URI'], "?"), -strlen($feed)) == $feed) {
+                    $this->addHookBefore("ProcessPageView::pageNotFound", $this, "renderRSS");
+                }
             }
         }
     }

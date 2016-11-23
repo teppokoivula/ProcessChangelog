@@ -332,3 +332,24 @@ table.changelog span.hidden {
 #info h2 i {
     font-size: 1em !important;
 }
+
+#feeds li {
+    display: inline-block;
+    margin-right: 1em;
+}
+
+#feeds li:not(:last-child)::after {
+    content: '|';
+    margin-left: 1em;
+    opacity: 0.25;
+}
+
+#feeds li:last-child {
+    margin-right: 0;
+}
+
+#feeds a::before {
+    font-family: FontAwesome;
+    padding: 0 0.5em 0 0;
+    content: '\f09e';
+}

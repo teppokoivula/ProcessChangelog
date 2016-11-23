@@ -23,7 +23,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.3.8',
+            'version' => '1.3.9',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -99,14 +99,14 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     }
     
     /**
-     * Name of admin page related to this module
+     * Name of the admin page related to this module
      * 
      * @var string
      */
     const PAGE_NAME = 'changelog';
 
     /**
-     * Name of database table used by this module
+     * Name of the database table used by this module
      * 
      * @var string
      */
@@ -373,8 +373,19 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $info .= sprintf(_n("One matching row found.", "%d matching rows found.", $query['total']), $query['total']);
         $info .= "</h2></div>";
 
+        // feed links
+        $feeds = "<ul id='feeds'>";
+        $feeds .= "<li><a href='./rss/' target='_blank'>" . __('RSS') . "</a></li>";
+        if ($this->modules->isInstalled('ProcessChangelogRSS')) {
+            $changelogRSS = $this->modules->get('ProcessChangelogRSS');
+            if ($changelogRSS->feed_url && $changelogRSS->show_feed_link) {
+                $feeds .= "<li><a href='{$changelogRSS->feed_url}' target='_blank'>" . __('Public RSS') . "</a></li>";
+            }
+        }
+        $feeds .= "</ul>";
+        
         // return admin data table markup and pager
-        return $filters . $info . $table->render() . $pager;
+        return $filters . $info . $table->render() . $pager . $feeds;
 
     }
 
