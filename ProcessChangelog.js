@@ -1,22 +1,22 @@
 $(document).ready(function() {
     
-    var initChangelog = function() {
+    var initLog = function() {
         
-        var $table = $('table.changelog');
+        var $table = $('table.log');
         var $filters = $('form#filters');
         
         // more/less links
-        $table.find('tr').each(function() {
+        $table.find('> tbody > tr').each(function() {
             $(this)
-                .find('td:eq(4)')
+                .find('> td:last-child')
                 .wrapInner('<span class="hidden"></span>')
-                .append('<a class="more">'+config.ProcessChangelog.i18n.more+'</a>');
+                .append('<a class="more">'+config.log.i18n.more+'</a>');
         });
         
         // more/less functionality
         $table.on('click', 'a.more', function() {
             var $tr = $(this).parents('tr:first').toggleClass('open');
-            $(this).text(config.ProcessChangelog.i18n[$tr.hasClass('open') ? 'less' : 'more']);
+            $(this).text(config.log.i18n[$tr.hasClass('open') ? 'less' : 'more']);
             if ($tr.hasClass('open')) {
                 var colspan = $tr.find('> td').length;
                 var details = $(this).prev('.hidden').html();
@@ -28,14 +28,14 @@ $(document).ready(function() {
         
         // remove link
         $table.on('click', 'a.remove-row', function() {
-            if (confirm(config.ProcessChangelog.i18n.areYouSure)) {
+            if (confirm(config.log.i18n.areYouSure)) {
                 var $link = $(this);
                 $.get($link.attr('href'), function(data) {
                     data = $.parseJSON(data);
                     if (data && !data.error) {
                         $link.parents('tr:first').fadeOut('500');
                     } else {
-                        alert(config.ProcessChangelog.i18n.removeFailed);
+                        alert(config.log.i18n.removeFailed);
                     }
                 });
             }
@@ -77,7 +77,7 @@ $(document).ready(function() {
         // hide irrelevant options in filter form
         var $when = $filters.find('select[name=when]');
         if ($when.length && $when.attr('value') != "between") {
-            $filters.find('.changelog-datepicker')
+            $filters.find('.log-datepicker')
                 .parent('div')
                     .addClass('disabled')
                     .end()
@@ -86,7 +86,7 @@ $(document).ready(function() {
         }
         
         // init datepicker
-        $('.changelog-datepicker').each(function() {
+        $('.log-datepicker').each(function() {
             var options = {
                 dateFormat: $(this).attr('data-dateformat'),
                 minDate: $(this).attr('data-mindate'),
@@ -101,16 +101,30 @@ $(document).ready(function() {
     }
     
     // update content via AJAX
+    var updateXHR;
     var updateContent = function(params) {
-        if ($('#info h2 i.fa-spinner').length) return;
-        $('#info h2').append(' <i class="fa fa-spinner fa-spin"></i>');
-        $('table.changelog').parent().load(params, function() {
+        var $spinner = $('#info h2 i.fa-spinner');
+        if (!$spinner.length || $spinner.data('params') != params) {
+            if ($spinner.length && updateXHR) updateXHR.abort();
+            $spinner = $('<i class="fa fa-spinner fa-spin"></i>').data('params', params);
+            $('#info h2').append($spinner);
             history.replaceState(null, null, params);
-            initChangelog();
-        });
+            var updateXHR = $.ajax({
+                url: params,
+                error: function(xhr, textStatus, errorThrown) {
+                    alert(textStatus);
+                },
+                success: function(data, textStatus) {
+                    $('#info').parent().html(data);
+                },
+                complete: function(xhr, textStatus) {
+                    initLog();
+                }
+            });
+        }
     }
 
-    // init changelog
-    initChangelog();
+    // init
+    initLog();
     
 });

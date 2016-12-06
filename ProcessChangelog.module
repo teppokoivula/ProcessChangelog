@@ -23,7 +23,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.3.9',
+            'version' => '1.3.10',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -129,9 +129,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     /**
      * Array of optional permissions
      * 
-     * - If "changelog-remove" exists, user has to have it in order to remove
-     *   changelog rows. If not, every user with access to changelog can also
-     *   remove rows.
+     * - If "changelog-remove" exists, user has to have it in order to
+     *   remove rows. If not, every user with access to this module can
+     *   also remove rows.
      * 
      * @var array
      */
@@ -206,7 +206,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $field->name = "date_format";
         $field->label = __("Date Format");
         $field->notes = sprintf(__("See the %s function reference for more information on how to customize this format."), "[PHP date](http://www.php.net/manual/en/function.date.php)"); // Date format notes // %s will be replaced by a link to date section of PHP manual run-time
-        $field->value = ($data['date_format']) ? $data['date_format'] : $defaults['date_format'];
+        $field->value = $data['date_format'] ? $data['date_format'] : $defaults['date_format'];
         $fields->add($field);
 
         // number of results visible at once
@@ -316,12 +316,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * @return string
      */
     public function ___execute() {
-
+        
         // make sure that we have a newish version of Font-Awesome loaded
         if (version_compare($this->config->version, '3.0.18', '<')) {
             $this->config->styles->add('//maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css');
         }
-
+        
         // render filters (this has to be done here because certain filter
         // choices may affect choices available when building SQL queries)
         $filters = $this->renderFilters();
@@ -329,7 +329,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // setup admin data table
         $table = $this->modules->get("MarkupAdminDataTable");
         $table->setEncodeEntities(false);
-        $table->setClass('changelog');
+        $table->setClass('log');
         $table->headerRow(array(
             __('When'),
             __('Who'),
@@ -337,7 +337,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             __('Remove'),
             __('More')
         ));
-
+        
         // fetch rows from database and add them to our data table
         $query = $this->buildQuery();
         $stmt = $this->database->prepare($query['query']); 
@@ -348,7 +348,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // if less than two matches were found, disable table sorting
         if ($query['total'] < 2) $table->setSortable(false);
-
+        
         // pager markup
         $pager = "";
         if ($query['limit'] && $query['total'] > $query['limit']) {
@@ -357,9 +357,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $pager_pages = ceil($query['total']/$query['limit']);
             $pager = $this->renderPager($pager_links, $pager_page, $pager_pages);
         }
-
+        
         // UI translations
-        $this->config->js($this->className(), array(
+        $this->config->js('log', array(
             'i18n' => array(
                 'more' => __("more"),
                 'less' => __("less"),
@@ -367,12 +367,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 'removeFailed' => __("Sorry, remove failed"),
             ),
         ));
-
+        
         // basic information about found rows
         $info = "<div id='info'><h2>";
         $info .= sprintf(_n("One matching row found.", "%d matching rows found.", $query['total']), $query['total']);
         $info .= "</h2></div>";
-
+        
         // feed links
         $feeds = "<ul id='feeds'>";
         $feeds .= "<li><a href='./rss/' target='_blank'>" . __('RSS') . "</a></li>";
@@ -386,7 +386,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         
         // return admin data table markup and pager
         return $filters . $info . $table->render() . $pager . $feeds;
-
+        
     }
 
     /**
@@ -454,6 +454,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * @param array $group_by Fields to group results by, such as "id"
      * @return array Array with SQL query ('query'), total row count ('total'),
      *         start ('start') and limit ('limit')
+     * @throws WireException if template data can't be found
+     * @throws WireException if template flag is not recognized
      */
     private function buildQuery(array $group_by = array()) {
 
@@ -493,11 +495,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 }
                 switch ($key) {
                     case "data":
-                        $where[] = "$key LIKE '%$value%'";
+                        $where[] = "{$key} LIKE '%{$value}%'";
                         break;
                     case "when":
                         if (!isset($where['date_from']) && !isset($where['date_until']) && in_array($value, $allowed_intervals)) {
-                            $where[$key] = "DATE_SUB(CURDATE(), INTERVAL $value) <= timestamp";
+                            $where[$key] = "DATE_SUB(CURDATE(), INTERVAL {$value}) <= timestamp";
                         }
                         break;
                     case "date_from":
@@ -510,7 +512,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                                 $operator = ">=";
                                 $time = "00:00";
                             }
-                            $where[$key] = "timestamp $operator '$value $time'";
+                            $where[$key] = "timestamp {$operator} '{$value} {$time}'";
                         }
                         break;
                     case "template":
@@ -518,8 +520,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         if (!in_array($join, $joins)) $joins[] = $join;
                         $template = $this->getCacheTemplate($value);
                         if ($template) {
-                            $where[] = "(pages.templates_id $operator {$template['id']}"
-                                     . " OR {$this->table_name}.templates_id $operator {$template['id']})";
+                            $where[] = "(pages.templates_id {$operator} {$template['id']}"
+                                     . " OR {$this->table_name}.templates_id {$operator} {$template['id']})";
                         } else {
                             throw new WireException(sprintf(__("Template not found: %s"), $this->sanitizer->pageName($value)));
                         }
@@ -532,7 +534,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                             // since this is a bitwise operation, we need to
                             // modify our operator logic.. a bit
                             $negation = strpos($operator, "!") === 0;
-                            $where[] = "templates.flags & " . constant("Template::flag$value");
+                            $where[] = "templates.flags & " . constant("Template::flag{$value}");
                             if ($negation) $where[count($where)-1] = "NOT(" . $where[count($where)-1] . ")";
                         } else {
                             throw new WireException(sprintf(__("Flag not supported: %s"), $value)); 
@@ -544,31 +546,31 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                             break;
                         }
                     default:
-                        $where[] = "$key $operator '$value'";
+                        $where[] = "{$key} {$operator} '{$value}'";
                 }
             }
         }
-
+        
         // make sure that only operations being currently logged are visible,
         // even after selecting "all operations"
         if (!$this->input->get->operation) {
             $value = $this->database->escapeStr(implode(",", $this->operations));
             $where[] = "operation IN('" . str_replace(",", "','", $value) . "')";
         }
-
+        
         // put together WHERE clause, required JOINs and GROUP BY
         $where = $where ? "WHERE " . implode(" AND ", $where) : "";
         $joins = $joins ? " " . implode(" ", $joins) : "";
         $group_by = $group_by ? "GROUP BY " . implode(", ", $group_by) : "";
-
+        
         // total count of rows in database table
         $count = $group_by ? "DISTINCT " . substr($group_by, 9) : "*";
-        $sql = "SELECT COUNT($count) FROM {$this->table_name} $joins $where";
+        $sql = "SELECT COUNT({$count}) FROM {$this->table_name} {$joins} {$where}";
         $stmt = $this->database->prepare($sql); 
         $stmt->execute();
         $row = $stmt->fetch(PDO::FETCH_NUM);
         $total = reset($row);
-
+        
         // put together LIMIT
         $start = 0;
         $limit = isset($this->input->get->limit) ? (int) $this->input->get->limit : $this->row_limit;
@@ -576,17 +578,17 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             if ($this->input->get->page) $start = ($this->input->get->page-1)*$limit;
             if ($start > $total) $start = $total-$limit;
         }
-
+        
         // put together ORDER BY
         $sort = $this->input->get->sort ? $this->database->escapeStr($this->input->get->sort) : "-timestamp";
-        $sort_order = (strpos($sort, "-") === 0) ? "DESC" : "ASC";
+        $sort_order = strpos($sort, "-") === 0 ? "DESC" : "ASC";
         if ($sort_order == "DESC") $sort = substr($sort, 1);
-        $order_by = "ORDER BY $sort $sort_order, id DESC";
-
+        $order_by = "ORDER BY {$sort} {$sort_order}, id DESC";
+        
         // stick pieces together to construct final SQL query
-        $query = "SELECT {$this->table_name}.* FROM {$this->table_name} $joins $where $group_by $order_by";
-        if ($limit) $query .= " LIMIT $start, $limit";
-
+        $query = "SELECT {$this->table_name}.* FROM {$this->table_name} {$joins} {$where} {$group_by} {$order_by}";
+        if ($limit) $query .= " LIMIT {$start}, {$limit}";
+        
         // return SQL query along with some additional data
         return array(
             'query' => $query,
@@ -614,8 +616,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         }
 
         // timestamp (raw timestamp is hidden and only included to allow proper sorting with JavaScript)
-        $date = ($this->date_format) ? date($this->date_format, strtotime($row['timestamp'])) : $row['timestamp'];
-        $data[] = "<span class='hidden'>{$row['timestamp']}</span>$date";
+        $date = $this->date_format ? date($this->date_format, strtotime($row['timestamp'])) : $row['timestamp'];
+        $data[] = "<span class='hidden'>{$row['timestamp']}</span>{$date}";
 
         if ($row['username'] == "guest") {
             // guest user, no need to show an edit link
@@ -626,7 +628,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             if ($user->id) {
                 $data[] = "<a class='user' href='{$this->config->urls->admin}access/users/edit/?id={$user->id}'>{$user->name}</a>";
             } else {
-                $data[] = "<span class='user deleted' title='" . __("deleted") . "'>" . $row['username'] . "</span>";
+                $data[] = "<span class='user deleted' title='" . __("deleted") . "'>{$row['username']}</span>";
             }
         }
 
@@ -782,7 +784,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $get = "";
         foreach ($this->input->get as $key => $value) {
             if ($key != "page" && $value != "") {
-                $get .= "&amp;".urlencode($key)."=".urlencode($value);
+                $get .= "&amp;" . urlencode($key) . "=" . urlencode($value);
             }
         }
 
@@ -803,14 +805,14 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // generate markup
         $out = "<ul class='MarkupPagerNav MarkupPagerNavCustom'>";
         if ($start > 1) {
-            $out .= "<li><a href='./?page=1$get'><span>1</span></a></li>";
+            $out .= "<li><a href='./?page=1{$get}'><span>1</span></a></li>";
             if ($start > 2) {
                 $out .= "<li class='MarkupPagerNavSeparator'>&hellip;</li>";
             }
         }
         for ($i = $start; $i<=$pages; ++$i) {
-            $here = ($page == $i) ? " class='MarkupPagerNavOn'" : "";
-            $out .= "<li$here><a href='./?page=$i$get'><span>$i</span></a></li>";
+            $here = $page == $i ? " class='MarkupPagerNavOn'" : "";
+            $out .= "<li{$here}><a href='./?page={$i}{$get}'><span>{$i}</span></a></li>";
             if ($pages > $links && $i == $end && $i < $pages) {
                 if ($pages-$i > 1) {
                     $out .= "<li class='MarkupPagerNavSeparator'>&hellip;</li>";
@@ -839,7 +841,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // init vars
         $markup = "";
-        $class = ($operation) ? " icon-$operation" : "";
+        $class = $operation ? " icon-{$operation}" : "";
 
         // translatable phrases
         // __('Previous page name')
@@ -859,10 +861,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $key = htmlentities($key);
             $value = htmlentities($value);
             // generate markup
-            $markup .= "<tr><th>" . __($key) . "</th><td>$value</td></tr>";
+            $markup .= "<tr><th>" . __($key) . "</th><td>{$value}</td></tr>";
         }
         
-        return "<table class='details$class'>$markup</table>";
+        return "<table class='details{$class}'>{$markup}</table>";
 
     }
 
@@ -878,9 +880,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             if ((int) $this->input->get->id != $this->input->get->id) return false;
             $id = (int) $this->input->get->id;
             $sql = "DELETE FROM {$this->table_name} WHERE id=:id LIMIT 1";
-            $query = $this->database->prepare($sql); 
-            $query->bindValue(':id', $id, PDO::PARAM_INT); 
-            $query->execute();
+            $stmt = $this->database->prepare($sql); 
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT); 
+            $stmt->execute();
             return 1;
         } else {
             throw new WirePermissionException(__("You do not have the permission required by this action."));
@@ -905,15 +907,15 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $join_flags = "";
             if ($this->input->get->flags) {
                 $flag = str_replace("_", "", $this->sanitizer->name($this->input->get->flags));
-                if (constant("Template::flag$flag")) {
-                    $and_on = "templates.flags & " . constant("Template::flag$flag");
-                    if (strpos($this->input->get->flags, "!") === 0) $and_on = "NOT($and_on)";
+                if (constant("Template::flag{$flag}")) {
+                    $and_on = "templates.flags & " . constant("Template::flag{$flag}");
+                    if (strpos($this->input->get->flags, "!") === 0) $and_on = "NOT({$and_on})";
                     $join_flags .= "JOIN templates "
                                  . "ON templates.id = {$this->table_name}.templates_id "
-                                 . "AND $and_on";
+                                 . "AND {$and_on}";
                 }
             }
-            $sql = "SELECT {$this->table_name}.templates_id FROM {$this->table_name} $join_flags";
+            $sql = "SELECT {$this->table_name}.templates_id FROM {$this->table_name} {$join_flags}";
             $stmt = $this->database->prepare($sql); 
             $stmt->execute(); 
             $rowCount = $stmt->rowCount();
@@ -948,9 +950,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                     // negation operator) to underscores, which are then removed to
                     // catch possible flag names
                     $flag = str_replace("_", "", $this->sanitizer->name($value));
-                    if (defined("Template::flag$flag")) {
+                    if (defined("Template::flag{$flag}")) {
                         $negation = strpos($value, "!") === 0;
-                        $has_flag = $template_flags & constant("Template::flag$flag");
+                        $has_flag = $template_flags & constant("Template::flag{$flag}");
                         if ($negation && $has_flag || !$negation && !$has_flag) {
                             if ($this->input->get->flags == $options[$key]) {
                                 // flag being removed from available options is
@@ -978,7 +980,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             }
             $sql = "SELECT DISTINCT username 
                     FROM {$this->table_name}
-                    $where 
+                    {$where} 
                     ORDER BY username DESC";
             $stmt = $this->database->prepare($sql);
             $stmt->execute();
@@ -1014,29 +1016,29 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             // date range
             if (in_array('date_range', $this->visible_filters)) {
                 $disabled_title = __("Not relevant in this context");
-                $date_from = ($this->input->get->date_from) ? date('d.m.Y', strtotime($this->input->get->date_from)) : '';
-                $date_until = ($this->input->get->date_until) ? date('d.m.Y', strtotime($this->input->get->date_until)) : '';
+                $date_from = $this->input->get->date_from ? date('d.m.Y', strtotime($this->input->get->date_from)) : '';
+                $date_until = $this->input->get->date_until ? date('d.m.Y', strtotime($this->input->get->date_until)) : '';
                 $input = $this->modules->get("InputfieldText");
                 $markup .= "<div class='filter no-icon'>"
                          . "<input type='text'"
-                         . " value='$date_from'"
+                         . " value='{$date_from}'"
                          . " size='10'"
                          . " data-maxdate='+0D'"
                          . " data-dateformat='dd.mm.yy'"
                          . " name='date_from'"
-                         . " data-disabled-title='$disabled_title'"
-                         . " class='changelog-datepicker'"
+                         . " data-disabled-title='{$disabled_title}'"
+                         . " class='log-datepicker'"
                          . " />"
                          . "</div>"
                          . " .. "
                          . "<div class='filter no-icon'>"
                          . "<input type='text'"
-                         . " value='$date_until'"
+                         . " value='{$date_until}'"
                          . " size='10'"
                          . " data-maxdate='+0D'"
                          . " data-dateformat='dd.mm.yy'"
                          . " name='date_until'"
-                         . " class='changelog-datepicker'"
+                         . " class='log-datepicker'"
                          . " />"
                          . "</div>";
             }
@@ -1085,7 +1087,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         $attrs = "";
         if (isset($settings['attrs'])) {
-            foreach ($settings['attrs'] as $k => $v) $attrs .= " $k='$v'";
+            foreach ($settings['attrs'] as $k => $v) $attrs .= " {$k}='{$v}'";
         }
 
         $markup = "";
@@ -1097,11 +1099,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 if ($text == "deleted") $text = _x($text, $name);
                 else $text = __($text);
             }
-            $selected = ($this->input->get->$name == $value) ? ' selected="selected"' : '';
-            $markup .= "<option$selected value='$value'>$text</option>";
+            $selected = $this->input->get->$name == $value ? ' selected="selected"' : '';
+            $markup .= "<option{$selected} value='{$value}'>{$text}</option>";
         }
 
-        return "<div class='filter'$disabled><select name='$name'$disabled$attrs>$markup</select></div>";
+        return "<div class='filter'{$disabled}><select name='{$name}'{$disabled}{$attrs}>{$markup}</select></div>";
 
     }
 
@@ -1122,7 +1124,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         if (!$template_data) {
             $id = $id ? (int) $id : null;
             $name = $name ? $this->sanitizer->pageName($name) : null;
-            $template = $this->templates->get($id ? $id : "name=$name");
+            $template = $this->templates->get($id ? $id : "name={$name}");
             if ($template && $template->id) {
                 $template_data = array(
                     'id' => $template->id,
@@ -1130,8 +1132,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                     'label' => $template->get('label|name'),
                 );
             } else {
-                $where = $id ? "templates_id = $id" : "data LIKE '%\"Template name\":\"$name\"%'";
-                $sql = "SELECT data, templates_id FROM {$this->table_name} WHERE $where LIMIT 1";
+                $where = $id ? "templates_id = {$id}" : "data LIKE '%\"Template name\":\"{$name}\"%'";
+                $sql = "SELECT data, templates_id FROM {$this->table_name} WHERE {$where} LIMIT 1";
                 $stmt = $this->database->prepare($sql);
                 $stmt->execute();
                 if ($stmt->rowCount()) {
@@ -1201,7 +1203,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // find the page we installed, locating it by the process field (which has the module ID)
         // it would probably be sufficient just to locate by name, but this is just to be extra sure.
         $moduleID = $this->modules->getModuleID($this); 
-        $page = $this->pages->get("template=admin, process=$moduleID, name=" . self::PAGE_NAME); 
+        $page = $this->pages->get("template=admin, process={$moduleID}, name=" . self::PAGE_NAME); 
 
         if($page->id) {
             // if we found the page, let the user know and delete it
