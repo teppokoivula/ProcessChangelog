@@ -291,7 +291,7 @@ table.log tr.more table th::after {
 }
 
 table.log thead th:nth-last-child(2),
-table.log a.action {
+table.log a.action:not(.selected) {
     visibility: hidden;
 }
 
@@ -307,7 +307,7 @@ table.log a.action {
     }
 }
 
-table.log tr:hover a.action {
+table.log tr:hover a.action:not(.selected) {
     visibility: visible;
     opacity: 0.33;
 }
