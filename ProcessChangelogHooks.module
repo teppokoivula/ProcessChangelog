@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.1.9',
+            'version' => '1.1.10',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -204,10 +204,10 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $process = $event->object;
         $editPage = $process->getPage();
         try {
-            $query = $this->database->prepare("SELECT COUNT(*), MIN(timestamp) FROM " . self::TABLE_NAME . " WHERE pages_id=:id");
-            $query->bindValue(':id', $editPage->id, PDO::PARAM_INT); 
-            $query->execute();
-            list($num_edits, $timestamp) = $query->fetch(PDO::FETCH_NUM);
+            $stmt = $this->database->prepare("SELECT COUNT(*), MIN(timestamp) FROM " . self::TABLE_NAME . " WHERE pages_id=:id");
+            $stmt->bindValue(':id', $editPage->id, PDO::PARAM_INT); 
+            $stmt->execute();
+            list($num_edits, $timestamp) = $stmt->fetch(PDO::FETCH_NUM);
         } catch(Exception $e) {
             $this->error($e->getMessage());
             $num_edits = 0;
@@ -244,6 +244,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         } catch(Exception $e) {
             $this->error($e->getMessage());
         }
+        
     }
 
     /**
@@ -397,6 +398,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * @param int $pages_id
      * @param int $templates_id
      * @param array $details
+     * @throws WireException if operation is unknown
      */
     private function insert($operation, $pages_id, $templates_id, $details = array()) {
 
@@ -421,17 +423,18 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                "(user_id, username, pages_id, templates_id, operation, data) VALUES " .
                "(:user_id, :username, :pages_id, :templates_id, :operation, :data) ";
         try {
-            $query = $this->database->prepare($sql); 
-            $query->bindValue(':user_id', $user_id, PDO::PARAM_INT);
-            $query->bindValue(':username', $username, PDO::PARAM_STR);
-            $query->bindValue(':pages_id', $pages_id, PDO::PARAM_INT);
-            $query->bindValue(':templates_id', $templates_id, PDO::PARAM_INT);
-            $query->bindValue(':operation', $operation, PDO::PARAM_STR);
-            $query->bindValue(':data', $details, PDO::PARAM_STR);
-            $query->execute();
+            $stmt = $this->database->prepare($sql); 
+            $stmt->bindValue(':user_id', $user_id, PDO::PARAM_INT);
+            $stmt->bindValue(':username', $username, PDO::PARAM_STR);
+            $stmt->bindValue(':pages_id', $pages_id, PDO::PARAM_INT);
+            $stmt->bindValue(':templates_id', $templates_id, PDO::PARAM_INT);
+            $stmt->bindValue(':operation', $operation, PDO::PARAM_STR);
+            $stmt->bindValue(':data', $details, PDO::PARAM_STR);
+            $stmt->execute();
         } catch(Exception $e) {
             $this->error($e->getMessage());
         }
+        
     }
 
     /**
@@ -439,7 +442,9 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      *
      * This method applies incremental updates until latest schema version is
      * reached, while also keeping schema_version config setting up to date.
-     *
+     * 
+     * @throws WireException if database schema version isn't recognized
+     * @throws WireException if updating schema to specific version fails
      */
     private function updateDatabaseSchema() {
         while ($this->schema_version < self::SCHEMA_VERSION) {
