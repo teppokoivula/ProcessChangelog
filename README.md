@@ -12,7 +12,7 @@ users with a quick overview of sitewide changes.
 ## Requirements
 
 The master branch of this module requires ProcessWire 2.3.1+. If you're running
-an earlier version of ProcessWire, you probably shoud consider updating it, but
+an earlier version of ProcessWire you probably should consider updating it, but
 if that's not an option, please check out the legacy branch instead:
 
 https://github.com/teppokoivula/ProcessChangelog/tree/legacy
