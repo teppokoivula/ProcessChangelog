@@ -116,20 +116,6 @@ table.log strong.deleted {
     background: transparent;
 }
 
-table.log b.icon {
-    width: 10px;
-    height: 10px;
-    cursor: help;
-    margin-left: 0.3em;
-    display: inline-block;
-    background-repeat: no-repeat;
-    background-image: url('img/icons.png');
-}
-
-table.log b.icon.system {
-    background-position: 0 0;
-}
-
 table.log tr {
     line-height: 2em;
     display: table-row;
