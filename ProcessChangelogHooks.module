@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.0',
+            'version' => '1.2.1',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -56,6 +56,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'ignored_fields' => array(),
             'log_caller' => null,
             'data_max_age' => null,
+            'page_edit_changelog' => 1,
             'schema_version' => 1,
         );
     }
@@ -111,7 +112,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $field->name = "operations";
         $field->label = __("Operations");
         $field->addOptions($defaults['operations']);
-        $field->value = ($data['operations'] === $defaults['operations']) ? array_keys($defaults['operations']) : $data['operations'];
+        $field->value = $data['operations'] === $defaults['operations'] ? array_keys($defaults['operations']) : $data['operations'];
         $field->description = __("You can choose which operations to keep track of here.");
         $field->notes = __("Note that unchecking operations later won't remove rows containing them from database. Instead new rows of those types will no longer be created and existing ones won't be visible anymore.");
         $fields->add($field);
@@ -119,19 +120,21 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         // templates that should be ignored when logging changes
         $field = $modules->get("InputfieldAsmSelect");
         $field->name = "ignored_templates";
-        $field->label = __("Ignore these templates when logging changes");
+        $field->label = __("Ignored templates");
+        $field->description = __("Ignore these templates completely when logging changes.");
         $field->notes = __("Note that adding a template here will not remove any data stored for it.");
         $field->addOptions(wire('templates')->getAll()->getArray());
-        $field->value = $data['ignored_templates'];
+        $field->value = $data[$field->name];
         $fields->add($field);
 
         // fields that should be ignored when logging changes
         $field = $modules->get("InputfieldAsmSelect");
         $field->name = "ignored_fields";
-        $field->label = __("Ignore these fields when logging changes");
+        $field->label = __("Ignored fields");
+        $field->description = __("Ignore these fields completely when logging changes.");
         $field->notes = __("Note that adding a field here will not remove any data stored for it.");
         $field->addOptions(wire('fields')->getAll()->getArray());
-        $field->value = $data['ignored_fields'];
+        $field->value = $data[$field->name];
         $fields->add($field);
         
         // should caller (script or URL that triggered this action) be logged?
@@ -145,7 +148,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'all' => __('For all callers (CLI, external applications and ProcessWire itself)'),
         ));
         $field->notes = __("This can be useful when trying to find out why certain change was triggered. On the other hand it adds to the size of your database table and slightly slows script execution, which is why it's disabled by default.");
-        $field->value = isset($data[$field->name]) ? $data[$field->name] : null;
+        $field->value = $data[$field->name];
         $fields->add($field);
 
         // for how long should collected data be retained?
@@ -165,8 +168,25 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 '1 YEAR' => __('1 year'),
             ));
             $field->notes = __("Leave empty to disable automatic cleanup.");
-            $field->value = isset($data[$field->name]) ? $data[$field->name] : null;
+            $field->value = $data[$field->name];
         }
+        $fields->add($field);
+        
+        // should a Changelog section be added to the Settings tab of the page editor?
+        $field = $modules->get("InputfieldSelect");
+        $field->name = "page_edit_changelog";
+        $field->label = __("Add Changelog to the page editor");
+        $field->description = __("Add a Changelog section to the Settings tab of the page editor?");
+        if (!$data['data_max_age']) {
+            $field->notes = __("Please note that since you haven't specified a max age for your changelog data, disabling the Changelog section may be preferable. Otherwise large amounts of changelog data may result in slow load times for the page editor.");
+        }
+        $field->addOptions(array(
+            null => __("Disabled"),
+            1 => __("For everyone"),
+            2 => __("For users with the Changelog permission"),
+            3 => __("For superusers only"),
+        ));
+        $field->value = $data[$field->name];
         $fields->add($field);
 
         return $fields;
@@ -210,8 +230,10 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      *
      */
     public function ready() {
-        if ($this->page->template == 'admin' && $this->page->process == 'ProcessPageEdit') {
-            $this->addHookAfter('ProcessPageEdit::buildFormSettings', $this, 'hookPageEdit');
+        if ($this->page_edit_changelog && $this->page->template == 'admin' && $this->page->process == 'ProcessPageEdit') {
+            if ($this->page_edit_changelog == 1 || $this->page_edit_changelog == 2 && $this->user->hasPermission('Changelog') || $this->user->isSuperuser()) {
+                $this->addHookAfter('ProcessPageEdit::buildFormSettings', $this, 'hookPageEdit');
+            }
         }
     }
 

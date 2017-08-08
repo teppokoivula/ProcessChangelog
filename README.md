@@ -112,16 +112,23 @@ the bundled module's has it's own settings.
 * Defines which (if any) fields should be completely ignored from the log.
 * Default: none
 
-**Caller Logging**
+**Caller logging**
 
 * Defines whether path/URL for script that triggered action should be stored.
 * Default: disabled
 
-**Data Max Age**
+**Data max age**
 
 * Defines how long collected data is kept before being removed automatically.
   Please note that automatic cleanup requires LazyCron module!
 * Default: forever (no automatic cleanup)
+
+**Add Changelog to the page editor**
+
+* Defines whether a Changelog section should be added to the Settings tab of the
+  page editor. Can be enabled for everyone, users with the Changelog permission,
+  or superusers only. Note that this may affect the performance of page editor.
+* Default: add for everyone
 
 ### Process Changelog RSS
 
