@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.1.10',
+            'version' => '1.2.0',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -52,6 +52,8 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 "published" => __("published"),
                 "unpublished" => __("unpublished"),
             ),
+            'ignored_templates' => array(),
+            'ignored_fields' => array(),
             'log_caller' => null,
             'data_max_age' => null,
             'schema_version' => 1,
@@ -113,7 +115,25 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $field->description = __("You can choose which operations to keep track of here.");
         $field->notes = __("Note that unchecking operations later won't remove rows containing them from database. Instead new rows of those types will no longer be created and existing ones won't be visible anymore.");
         $fields->add($field);
+        
+        // templates that should be ignored when logging changes
+        $field = $modules->get("InputfieldAsmSelect");
+        $field->name = "ignored_templates";
+        $field->label = __("Ignore these templates when logging changes");
+        $field->notes = __("Note that adding a template here will not remove any data stored for it.");
+        $field->addOptions(wire('templates')->getAll()->getArray());
+        $field->value = $data['ignored_templates'];
+        $fields->add($field);
 
+        // fields that should be ignored when logging changes
+        $field = $modules->get("InputfieldAsmSelect");
+        $field->name = "ignored_fields";
+        $field->label = __("Ignore these fields when logging changes");
+        $field->notes = __("Note that adding a field here will not remove any data stored for it.");
+        $field->addOptions(wire('fields')->getAll()->getArray());
+        $field->value = $data['ignored_fields'];
+        $fields->add($field);
+        
         // should caller (script or URL that triggered this action) be logged?
         $field = $modules->get("InputfieldSelect");
         $field->name = "log_caller";
@@ -260,6 +280,9 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
         // don't log operations for repeaters or admin pages
         if ($page instanceof RepeaterPage || $page->template == "admin") return;
+        
+        // don't log operations for ignored templates
+        if (!empty($this->ignored_templates) && in_array($page->template->id, $this->ignored_templates)) return;
 
         // grab operation from event
         $operation = $event->method;
@@ -275,18 +298,22 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             if ($page->isChanged()) {
                 if ($field && $page->isChanged($field->name)) {
                     // only one field was edited (saveFieldReady)
-                    $fields_edited[] = $field->name;
+                    $fields_edited[$field->id] = $field->name;
                 } else {
                     // one or more fields were edited (saveReady)
                     foreach ($page->template->fields as $field) {
                         if ($page->isChanged($field->name)) {
-                            $fields_edited[] = $field->name;
+                            $fields_edited[$field->id] = $field->name;
                         }
                     }
                 }
-                // only continue if at least one field has been changed (or
-                // if status has changed trigger new event for that)
-                if (!count($fields_edited)) {
+                // filter out any ignored fields
+                if (!empty($this->ignored_fields) && !empty($fields_edited)) {
+                    $fields_edited = array_diff_key($fields_edited, array_flip($this->ignored_fields));
+                }
+                // only continue if at least one field has been changed (and
+                // if status has changed, trigger a new event for that)
+                if (empty($fields_edited)) {
                     if ($page->isChanged("status")) {
                         $event->method = $page->is(Page::statusUnpublished) ? "unpublished" : "published";
                         $this->logPageEvent($event);
@@ -294,7 +321,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                     if ($this->modules->isInstalled("LanguageSupportPageNames")) {
                         // if multi-language page names are enabled, we need to
                         // fake a rename action when non-default name changes
-                        if (count($page->getChanges()) && $changes = $page->getChanges()) {
+                        if (!empty($page->getChanges()) && $changes = $page->getChanges()) {
                             foreach ($changes as $change) {
                                 if (strpos($change, "name") === 0 && preg_match("/^name([0-9]+)$/", $change, $matches)) {
                                     $lang = $this->languages->get((int) $matches[1]);
@@ -312,7 +339,10 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                     }
                     return;
                 }
-            } else return;
+            } else {
+                // nothing has changed
+                return;
+            }
         } else if ($operation == "renamed") {
             // if previous parent is trash, page is being restored
             if ($page->parentPrevious instanceof Page && $page->parentPrevious->id == $this->config->trashPageID) return;
@@ -351,7 +381,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         }
 
         // note: currently only "edited" operation keeps track of edited fields
-        if (count($fields_edited)) $details['Fields edited'] = implode(", ", $fields_edited);
+        if (!empty($fields_edited)) $details['Fields edited'] = implode(", ", $fields_edited);
 
         // find out which script / URL triggered this particular action
         if ($this->log_caller && $caller = $this->getCaller()) $details['Caller'] = $caller;
