@@ -2,7 +2,7 @@ Process Changelog Module
 ========================
 
 Changelog module for ProcessWire CMS/CMF.
-Copyright (c) 2013-2016 Teppo Koivula
+Copyright (c) 2013-2017 Teppo Koivula
 
 This module keeps track of changes (edits, additions, removals etc.) on your
 ProcessWire site. It is not intended as a version control solution: for that
