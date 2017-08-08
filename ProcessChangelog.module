@@ -7,7 +7,7 @@
  * pages of your site. For detailed information, installation instructions
  * etc. see README.md.
  *
- * @copyright 2013-2016 Teppo Koivula
+ * @copyright 2013-2017 Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */ 
 class ProcessChangelog extends Process implements ConfigurableModule {
@@ -23,7 +23,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.4.1',
+            'version' => '1.5.0',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -94,7 +94,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                     'options' => array(),
                     'translate' => false,
                 )
-            )
+            ),
+            'rss_content_type' => 0,
         );
     }
     
@@ -104,6 +105,17 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * @var string
      */
     const PAGE_NAME = 'changelog';
+    
+    /**
+     * Valid Content-Type headers for the RSS feed
+     * 
+     * @var array
+     */
+    public static $rss_content_types = array(
+        0 => 'application/rss+xml',
+        1 => 'application/xml',
+        2 => 'text/xml',
+    );
 
     /**
      * Name of the database table used by this module
@@ -284,6 +296,20 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         $fields->add($fieldset_visibility);
         
+        // RSS settings
+        $fieldset_rss = $modules->get("InputfieldFieldset");
+        $fieldset_rss->label = __("RSS settings");
+        $fieldset_rss->collapsed = true;
+        
+        // RSS Content-Type header
+        $field = $modules->get("InputfieldSelect");
+        $field->name = "rss_content_type";
+        $field->addOptions(self::$rss_content_types);
+        $field->value = $data['rss_content_type'];
+        $fieldset_rss->add($field);
+        
+        $fields->add($fieldset_rss);
+
         return $fields;
     }
 
@@ -443,7 +469,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         }
 
         // send header and output RSS
-        header('Content-type: application/rss+xml; charset=UTF-8');
+        if (((int) $this->rss_content_type != $this->rss_content_type) || !isset(self::$rss_content_types[$this->rss_content_type])) {
+            $this->rss_content_type = 0;
+        };
+        header('Content-type: ' . self::$rss_content_types[$this->rss_content_type] . '; charset=UTF-8');
         exit($rss->asXML());
 
     }
