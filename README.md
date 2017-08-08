@@ -102,6 +102,16 @@ the bundled module's has it's own settings.
 * Defines which operations to keep track of / which should be ignored.
 * Default: all available operations
 
+**Ignored templates**
+
+* Defines which (if any) templates should be completely ignored from the log.
+* Default: none
+
+**Ignored fields**
+
+* Defines which (if any) fields should be completely ignored from the log.
+* Default: none
+
 **Caller Logging**
 
 * Defines whether path/URL for script that triggered action should be stored.
