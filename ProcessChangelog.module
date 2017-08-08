@@ -23,7 +23,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.5.0',
+            'version' => '1.5.1',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -465,7 +465,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 $item->addChild('description', __("No data available."));
             }
             $item->addChild('link', 'http' . ($this->config->https ? 's' : '') . '://' . $this->config->httpHost . $this->config->urls->admin . 'page/edit/?id=' . (int) $row['pages_id']);
-            $item->addChild('pubDate', date('r', strtotime($row['timestamp'])));
+            $item->addChild('pubDate', date(DATE_RSS, strtotime($row['timestamp'])));
         }
 
         // send header and output RSS
