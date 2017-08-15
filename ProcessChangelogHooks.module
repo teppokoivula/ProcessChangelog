@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.1',
+            'version' => '1.2.2',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -343,7 +343,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                     if ($this->modules->isInstalled("LanguageSupportPageNames")) {
                         // if multi-language page names are enabled, we need to
                         // fake a rename action when non-default name changes
-                        if (!empty($page->getChanges()) && $changes = $page->getChanges()) {
+                        if ($changes = $page->getChanges()) {
                             foreach ($changes as $change) {
                                 if (strpos($change, "name") === 0 && preg_match("/^name([0-9]+)$/", $change, $matches)) {
                                     $lang = $this->languages->get((int) $matches[1]);
