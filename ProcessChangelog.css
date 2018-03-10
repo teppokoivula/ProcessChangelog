@@ -310,8 +310,8 @@ table.log span.hidden {
 
 /* --- misc --- */
 
-.content ul.MarkupPagerNavCustom li.MarkupPagerNavSeparator,
-.content ul.MarkupPagerNavCustom li a {
+.content .MarkupPagerNavCustom li.MarkupPagerNavSeparator,
+.content .MarkupPagerNavCustom li a {
     margin-right: 3px;
 }
 
