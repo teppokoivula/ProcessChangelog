@@ -9,7 +9,7 @@ $(document).ready(function() {
         $table.find('> tbody > tr').each(function() {
             $(this)
                 .find('> td:last-child')
-                .wrapInner('<span class="hidden"></span>')
+                .wrapInner('<span hidden></span>')
                 .append('<a class="more">'+config.log.i18n.more+'</a>');
         });
         
@@ -19,7 +19,7 @@ $(document).ready(function() {
             $(this).text(config.log.i18n[$tr.hasClass('open') ? 'less' : 'more']);
             if ($tr.hasClass('open')) {
                 var colspan = $tr.find('> td').length;
-                var details = $(this).prev('.hidden').html();
+                var details = $(this).prev('[hidden]').html();
                 $tr.after('<tr class="more"><td colspan="' + colspan + '"><div>' + details + '</div></td></tr>');
             } else {
                 $tr.next('tr.more').remove();

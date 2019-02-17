@@ -304,10 +304,6 @@ table.log tr a.action:hover {
     opacity: 1;
 }
 
-table.log span.hidden {
-    display: none;
-}
-
 /* --- misc --- */
 
 .content .MarkupPagerNavCustom li.MarkupPagerNavSeparator,
