@@ -8,7 +8,7 @@
  * 
  * For detailed information, installation instructions etc. see README.md.
  *
- * @copyright 2013-2017 Teppo Koivula
+ * @copyright 2013-2019 Teppo Koivula
  * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessChangelogHooks extends WireData implements Module, ConfigurableModule {
@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'http://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.2.2',
+            'version' => '1.3.0',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -42,6 +42,8 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     static public function getDefaultData() {
         return array(
             'operations' => array(
+                "hid" => __("hid"),
+                "unhid" => __("unhid"),
                 "added" => __("added"),
                 "moved" => __("moved"),
                 "edited" => __("edited"),
@@ -337,8 +339,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 // if status has changed, trigger a new event for that)
                 if (empty($fields_edited)) {
                     if ($page->isChanged("status")) {
-                        $event->method = $page->is(Page::statusUnpublished) ? "unpublished" : "published";
-                        $this->logPageEvent($event);
+                        $this->triggerStatusEvents($event);
                     }
                     if ($this->modules->isInstalled("LanguageSupportPageNames")) {
                         // if multi-language page names are enabled, we need to
@@ -398,8 +399,8 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             // for pages being edited current or previous parent is irrelevant
             // data since changing parent will also trigger "moved" operation.
             $details['Previous page URL'] = $page->parentPrevious->url;
-            if ($page->namePrevious) $details['Previous page URL'] .= $page->namePrevious."/";
-            else $details['Previous page URL'] .= $page->name."/";
+            if ($page->namePrevious) $details['Previous page URL'] .= $page->namePrevious . "/";
+            else $details['Previous page URL'] .= $page->name . "/";
         }
 
         // note: currently only "edited" operation keeps track of edited fields
@@ -410,12 +411,33 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
         $this->insert($operation, $page->id, $page->template->id, $details);
 
-        if ($page->isChanged('status') && !in_array($operation, array("unpublished", "published"))) {
-            // if status has changed, log extra unpublished/published event
-            $event->method = $page->is(Page::statusUnpublished) ? "unpublished" : "published";
+        // if status has changed and current event doesn't reflect that, log extra event(s)
+        if ($page->isChanged('status') && !in_array($operation, array("unpublished", "published", "hid", "unhid"))) {
+            $this->triggerStatusEvents($event);
+        }
+
+    }
+
+    /**
+     * Trigger additional status-related events for given event
+     *
+     * @param HookEvent $event
+     */
+    private function triggerStatusEvents(HookEvent $event) {
+
+        $page = $event->arguments[0];
+
+        // was this page was hidden or unhidden?
+        if ($page->is(Page::statusHidden) !== (bool) ($page->statusPrevious & Page::statusHidden)) {
+            $event->method = $page->is(Page::statusHidden) ? "hid" : "unhid";
             $this->logPageEvent($event);
         }
 
+        // was this page published or unpublished?
+        if ($page->is(Page::statusUnpublished) !== (bool) ($page->statusPrevious & Page::statusUnpublished)) {
+            $event->method = $page->is(Page::statusUnpublished) ? "unpublished" : "published";
+            $this->logPageEvent($event);
+        }
     }
 
     /**
@@ -432,14 +454,16 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         if (isset($_SERVER['HTTP_HOST'])) {
             if (!isset($_SERVER['REQUEST_URI'])) {
                 // IIS support, based on http://davidwalsh.name/iis-php-server-request_uri
-                $qs = isset($_SERVER['QUERY_STRING']) ? "?".$_SERVER['QUERY_STRING'] : "";
+                $qs = isset($_SERVER['QUERY_STRING']) ? "?" . $_SERVER['QUERY_STRING'] : "";
                 $_SERVER['REQUEST_URI'] = substr($_SERVER['PHP_SELF'], 1) . $qs;
             }
             $scheme = $this->config->https ? "https://" : "http://";
-            $caller = $scheme.$_SERVER['HTTP_HOST'].$_SERVER['REQUEST_URI'];
+            $caller = $scheme . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
         }
 
-        if ($this->log_caller == "all" || !$caller_is_processwire) return $caller;
+        if ($this->log_caller == "all" || !$caller_is_processwire) {
+            return $caller;
+        }
 
     }
 
