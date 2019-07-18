@@ -1,0 +1,23 @@
+{
+    "name": "teppokoivula/process-changelog",
+    "type": "pw-module",
+    "description": "ProcessChangelog is a ProcessWire CMS/CMF module for tracking changes (edits, additions, removals, etc.) of pages.",
+    "keywords": [
+        "module",
+        "processwire"
+    ],
+    "homepage": "https://github.com/teppokoivula/ProcessChangelog",
+    "license": "GPL-2.0-only",
+    "authors": [
+        {
+            "name": "Teppo Koivula",
+            "homepage": "https://github.com/teppokoivula",
+            "email": "teppo.koivula@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=5.4",
+        "processwire/processwire": ">=2.2",
+        "wireframe-framework/processwire-composer-installer": "^1.0.0"
+    }
+}
