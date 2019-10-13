@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2019-10-13
+
+### Changed
+- When guest role is included in ignored_roles, it takes effect only if it's the only role that the current user has.
+
 ## [1.7.0] - 2019-10-13
 
 ### Added

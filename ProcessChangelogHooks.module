@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'https://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.4.0',
+            'version' => '1.4.1',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -146,7 +146,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $field->name = "ignored_roles";
         $field->label = __("Ignored roles");
         $field->description = __("Ignore these roles completely when logging changes.");
-        $field->notes = __("Note that adding a role here will **not** remove any data stored for it.");
+        $field->notes = __("Note that adding a role here will **not** remove any data stored for it. Also note that the guest role has a special meaning: in the case of other roles the user is ignored if she has any of the ignored rules, but for guest role the user is only ignored if she has the guest role *and no other roles*.");
         foreach (wire('pages')->find('template=role, check_access=0')->explode(['id', 'name']) as $role) {
             $field->addOption($role['id'], $role['name']);
         }
@@ -338,7 +338,13 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         // don't log operations by ignored user roles
         if (!empty($this->ignored_roles)) {
             foreach ($this->ignored_roles as $ignored_role) {
-                if ($this->user->hasRole($ignored_role)) return;
+                if ($ignored_role == $this->config->guestUserRolePageID) {
+                    // Note: guest role needs special treatment, or ignoring it wouldn't be of any
+                    // real use. In this case we'll only ignore users with **only** the guest role.
+                    if ($this->user->roles->count == 1) return;
+                } else if ($this->user->hasRole($ignored_role)) {
+                    return;
+                }
             }
         }
 
