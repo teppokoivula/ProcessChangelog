@@ -9,7 +9,7 @@
  * For detailed information, installation instructions etc. see README.md.
  *
  * @copyright 2013-2019 Teppo Koivula
- * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessChangelogHooks extends WireData implements Module, ConfigurableModule {
 
@@ -22,9 +22,9 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         return array(
             'title' => 'Changelog Hooks',
             'summary' => 'Hooks required by Process Changelog for collecting data',
-            'href' => 'http://modules.processwire.com/modules/process-changelog/',
+            'href' => 'https://modules.processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.3.0',
+            'version' => '1.4.0',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -56,6 +56,8 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             ),
             'ignored_templates' => array(),
             'ignored_fields' => array(),
+            'ignored_roles' => array(),
+            'ignored_users' => array(),
             'log_caller' => null,
             'data_max_age' => null,
             'page_edit_changelog' => 1,
@@ -134,11 +136,36 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $field->name = "ignored_fields";
         $field->label = __("Ignored fields");
         $field->description = __("Ignore these fields completely when logging changes.");
-        $field->notes = __("Note that adding a field here will not remove any data stored for it.");
+        $field->notes = __("Note that adding a field here will **not** remove any data stored for it.");
         $field->addOptions(wire('fields')->getAll()->getArray());
         $field->value = $data[$field->name];
         $fields->add($field);
         
+        // roles that should be ignored when logging changes
+        $field = $modules->get("InputfieldAsmSelect");
+        $field->name = "ignored_roles";
+        $field->label = __("Ignored roles");
+        $field->description = __("Ignore these roles completely when logging changes.");
+        $field->notes = __("Note that adding a role here will **not** remove any data stored for it.");
+        foreach (wire('pages')->find('template=role, check_access=0')->explode(['id', 'name']) as $role) {
+            $field->addOption($role['id'], $role['name']);
+        }
+        $field->value = $data[$field->name];
+        $fields->add($field);
+
+        // users that should be ignored when logging changes
+        $field = $modules->get("InputfieldAsmSelect");
+        $field->name = "ignored_users";
+        $field->label = __("Ignored users");
+        $field->description = __("Ignore these users completely when logging changes.");
+        $field->notes = __("Note that adding a user here will **not** remove any data stored for it.");
+        $user_templates = wire('config')->userTemplateIds ? implode('|', wire('config')->userTemplateIDs) : 'user';
+        foreach (wire('pages')->find('template=' . $user_templates . ', check_access=0')->explode(['id', 'name']) as $role) {
+            $field->addOption($role['id'], $role['name']);
+        }
+        $field->value = $data[$field->name];
+        $fields->add($field);
+
         // should caller (script or URL that triggered this action) be logged?
         $field = $modules->get("InputfieldSelect");
         $field->name = "log_caller";
@@ -307,6 +334,16 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         
         // don't log operations for ignored templates
         if (!empty($this->ignored_templates) && in_array($page->template->id, $this->ignored_templates)) return;
+
+        // don't log operations by ignored user roles
+        if (!empty($this->ignored_roles)) {
+            foreach ($this->ignored_roles as $ignored_role) {
+                if ($this->user->hasRole($ignored_role)) return;
+            }
+        }
+
+        // don't log operations by ignored users
+        if (!empty($this->ignored_users) && in_array($this->user->id, $this->ignored_users)) return;
 
         // grab operation from event
         $operation = $event->method;

@@ -112,6 +112,16 @@ the bundled module's has it's own settings.
 * Defines which (if any) fields should be completely ignored from the log.
 * Default: none
 
+**Ignored roles**
+
+* Define which (if any) roles should be completely ignored from the log.
+* Default: none
+
+**Ignored users**
+
+* Define which (if any) users should be completely ignored from the log.
+* Default: none
+
 **Caller logging**
 
 * Defines whether path/URL for script that triggered action should be stored.

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2019-10-13
+
+### Added
+- New config options ignored_roles and ignored_users for ignoring changes made by specific roles/users (ProcessChangelogHooks).
+
 ## [1.6.0] - 2019-07-18
 
 ### Added
