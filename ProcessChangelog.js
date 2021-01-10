@@ -101,6 +101,8 @@ $(document).ready(function() {
     }
     
     // update content via AJAX
+    var $contentContainer = $('#info').parent();
+    var isUikit = $contentContainer.find('.uk-select:first').length > 0;
     var updateXHR;
     var updateContent = function(params) {
         var $spinner = $('#info h2 i.fa-spinner');
@@ -109,13 +111,16 @@ $(document).ready(function() {
             $spinner = $('<i class="fa fa-spinner fa-spin"></i>').data('params', params);
             $('#info h2').append($spinner);
             history.replaceState(null, null, params);
-            var updateXHR = $.ajax({
+            updateXHR = $.ajax({
                 url: params,
                 error: function(xhr, textStatus, errorThrown) {
                     alert(textStatus);
                 },
                 success: function(data, textStatus) {
-                    $('#info').parent().html(data);
+                    $contentContainer.html(data);
+                    if (isUikit) {
+                        $contentContainer.find('select').addClass('uk-select');
+                    }
                 },
                 complete: function(xhr, textStatus) {
                     initLog();

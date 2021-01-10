@@ -1,14 +1,14 @@
-<?php
+<?php namespace ProcessWire;
 
 /**
  * Hooks for Process Changelog
  *
- * This module stores changelog data to custom database table. Separated from
- * main module to keep ProcessWire from autoloading any unnecessary code.
+ * This module stores changelog data to custom database table. Separated from main module in order to keep ProcessWire
+ * from autoloading any unnecessary code.
  * 
- * For detailed information, installation instructions etc. see README.md.
+ * For detailed information and installation instructions see README.md.
  *
- * @copyright 2013-2019 Teppo Koivula
+ * @copyright 2013-2021 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessChangelogHooks extends WireData implements Module, ConfigurableModule {
@@ -19,16 +19,16 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * @return array
      */
     public static function getModuleInfo() {
-        return array(
+        return [
             'title' => 'Changelog Hooks',
             'summary' => 'Hooks required by Process Changelog for collecting data',
-            'href' => 'https://modules.processwire.com/modules/process-changelog/',
+            'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.4.1',
+            'version' => '1.5.0',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
-        ); 
+        ];
     }
 
     /**
@@ -40,8 +40,8 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * @return array
      */
     static public function getDefaultData() {
-        return array(
-            'operations' => array(
+        return [
+            'operations' => [
                 "hid" => __("hid"),
                 "unhid" => __("unhid"),
                 "added" => __("added"),
@@ -53,16 +53,16 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 "restored" => __("restored"),
                 "published" => __("published"),
                 "unpublished" => __("unpublished"),
-            ),
-            'ignored_templates' => array(),
-            'ignored_fields' => array(),
-            'ignored_roles' => array(),
-            'ignored_users' => array(),
+            ],
+            'ignored_templates' => [],
+            'ignored_fields' => [],
+            'ignored_roles' => [],
+            'ignored_users' => [],
             'log_caller' => null,
             'data_max_age' => null,
             'page_edit_changelog' => 1,
             'schema_version' => 1,
-        );
+        ];
     }
     
     /**
@@ -85,10 +85,9 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * ProcessWire will automatically overwrite it with anything the user has specifically configured.
      * This is done in construct() rather than init() because ProcessWire populates config data after
      * construct(), but before init().
-     *
      */
     public function __construct() {
-        foreach(self::getDefaultData() as $key => $value) {
+        foreach (self::getDefaultData() as $key => $value) {
             $this->$key = $value;
         }
     }
@@ -104,7 +103,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         // this is a container for fields, basically like a fieldset
         $fields = new InputfieldWrapper();
 
-        // since this is a static function, we can't use $this->modules, so get them from the global wire() function
+        // reference to the modules API variable
         $modules = wire('modules');
 
         // merge default config settings (custom values overwrite defaults)
@@ -171,11 +170,11 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $field->name = "log_caller";
         $field->label = __("Caller logging");
         $field->description = __("Enable logging of path/URL for script that triggered action?");
-        $field->addOptions(array(
+        $field->addOptions([
             null => __("Disabled"),
             'external' => __("For external callers only (CLI and external applications)"),
             'all' => __('For all callers (CLI, external applications and ProcessWire itself)'),
-        ));
+        ]);
         $field->notes = __("This can be useful when trying to find out why certain change was triggered. On the other hand it adds to the size of your database table and slightly slows script execution, which is why it's disabled by default.");
         $field->value = $data[$field->name];
         $fields->add($field);
@@ -187,7 +186,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $field->description = __("For how long should we retain collected data?");
         $field->notes = __("Automatic cleanup requires LazyCron module, which isn't currently installed.");
         if ($modules->isInstalled("LazyCron")) {
-            $field->addOptions(array(
+            $field->addOptions([
                 '1 WEEK' => __('1 week'),
                 '2 WEEK' => __('2 weeks'),
                 '1 MONTH' => __('1 month'),
@@ -195,7 +194,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 '3 MONTH' => __('3 months'),
                 '6 MONTH' => __('6 months'),
                 '1 YEAR' => __('1 year'),
-            ));
+            ]);
             $field->notes = __("Leave empty to disable automatic cleanup.");
             $field->value = $data[$field->name];
         }
@@ -209,25 +208,20 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         if (!$data['data_max_age']) {
             $field->notes = __("Please note that since you haven't specified a max age for your changelog data, disabling the Changelog section may be preferable. Otherwise large amounts of changelog data may result in slow load times for the page editor.");
         }
-        $field->addOptions(array(
+        $field->addOptions([
             null => __("Disabled"),
             1 => __("For everyone"),
             2 => __("For users with the Changelog permission"),
             3 => __("For superusers only"),
-        ));
+        ]);
         $field->value = $data[$field->name];
         $fields->add($field);
 
         return $fields;
-
     }
 
     /**
-     * Initialization function
-     *
-     * This function attachs hooks used for change tracking, triggers periodical
-     * cleanups and checks if there's a database schema update available.
-     *
+     * Initialize the module and attach required hooks
      */
     public function init() {
 
@@ -248,15 +242,12 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $this->pages->addHook('deleted', $this, 'logPageEvent'); 
         $this->pages->addHook('saveReady', $this, 'logPageEvent'); 
         $this->pages->addHook('saveFieldReady', $this, 'logPageEvent'); 
-
     }
 
     /**
      * Initialization when $page is known
      *
-     * Attach hook to ProcessPageEdit::buildFormSettings in order to display
-     * recent changes in the context of page editor.
-     *
+     * Attach hook to ProcessPageEdit::buildFormSettings in order to display recent changes in the context of page editor.
      */
     public function ready() {
         if ($this->page_edit_changelog && $this->page->template == 'admin' && $this->page->process == 'ProcessPageEdit') {
@@ -268,7 +259,6 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
     /**
      * Adds a Changelog section to the Settings tab in the page editor
-     *
      */
     public function hookPageEdit(HookEvent $event) {
         $form = $event->return;
@@ -276,14 +266,15 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $editPage = $process->getPage();
         try {
             $stmt = $this->database->prepare("SELECT COUNT(*), MIN(timestamp) FROM " . self::TABLE_NAME . " WHERE pages_id=:id");
-            $stmt->bindValue(':id', $editPage->id, PDO::PARAM_INT); 
+            $stmt->bindValue(':id', $editPage->id, \PDO::PARAM_INT); 
             $stmt->execute();
-            list($num_edits, $timestamp) = $stmt->fetch(PDO::FETCH_NUM);
-        } catch(Exception $e) {
+            list($num_edits, $timestamp) = $stmt->fetch(\PDO::FETCH_NUM);
+        } catch(\Exception $e) {
             $this->error($e->getMessage());
             $num_edits = 0;
         }
         if ($num_edits) {
+            /** @var InputfieldMarkup */
             $field = $this->modules->get('InputfieldMarkup');
             $processPage = $this->pages->get('process=' . $this->modules->getModuleID('ProcessChangelog'));
             $field->label = $this->_('Changelog'); // Changelog field label
@@ -312,10 +303,9 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE timestamp < DATE_SUB(NOW(), INTERVAL $interval)";
         try {
             $this->database->exec($sql);
-        } catch(Exception $e) {
+        } catch(\Exception $e) {
             $this->error($e->getMessage());
         }
-        
     }
 
     /**
@@ -328,6 +318,9 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
         $page = $event->arguments[0];
         $field = isset($event->arguments[1]) ? $event->arguments[1] : null;
+
+        // don't log notifications
+        if ($event->method == "saveFieldReady" && $field == "notifications" && $page instanceof User) return;
 
         // don't log operations for repeaters or admin pages
         if ($page instanceof RepeaterPage || $page->template == "admin") return;
@@ -358,7 +351,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         // only continue if this operation is set to be logged
         if (!in_array($operation, $this->operations)) return;
 
-        $fields_edited = array();
+        $fields_edited = [];
         if ($operation == "edited") {
             // skip new pages or pages being restored/trashed
             if (!$page->id || $page->parentPrevious) return;
@@ -425,7 +418,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         }
 
         // details about page being edited, trashed, moved etc.
-        $details = array();
+        $details = [];
 
         if ($page->title) $details['Page title'] = $page->title;
 
@@ -455,10 +448,9 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $this->insert($operation, $page->id, $page->template->id, $details);
 
         // if status has changed and current event doesn't reflect that, log extra event(s)
-        if ($page->isChanged('status') && !in_array($operation, array("unpublished", "published", "hid", "unhid"))) {
+        if ($page->isChanged('status') && !in_array($operation, ["unpublished", "published", "hid", "unhid"])) {
             $this->triggerStatusEvents($event);
         }
-
     }
 
     /**
@@ -507,7 +499,6 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         if ($this->log_caller == "all" || !$caller_is_processwire) {
             return $caller;
         }
-
     }
 
     /**
@@ -517,11 +508,14 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * @param int $pages_id
      * @param int $templates_id
      * @param array $details
+     *
      * @throws WireException if operation is unknown
      */
-    private function insert($operation, $pages_id, $templates_id, $details = array()) {
+    private function insert($operation, $pages_id, $templates_id, $details = []) {
 
-        if (!in_array($operation, $this->operations)) throw new WireException('Unknown operation');
+        if (!in_array($operation, $this->operations)) {
+            throw new WireException('Unknown operation');
+        }
 
         $pages_id = (int) $pages_id;
         $templates_id = (int) $templates_id;
@@ -543,17 +537,16 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                "(:user_id, :username, :pages_id, :templates_id, :operation, :data) ";
         try {
             $stmt = $this->database->prepare($sql); 
-            $stmt->bindValue(':user_id', $user_id, PDO::PARAM_INT);
-            $stmt->bindValue(':username', $username, PDO::PARAM_STR);
-            $stmt->bindValue(':pages_id', $pages_id, PDO::PARAM_INT);
-            $stmt->bindValue(':templates_id', $templates_id, PDO::PARAM_INT);
-            $stmt->bindValue(':operation', $operation, PDO::PARAM_STR);
-            $stmt->bindValue(':data', $details, PDO::PARAM_STR);
+            $stmt->bindValue(':user_id', $user_id, \PDO::PARAM_INT);
+            $stmt->bindValue(':username', $username, \PDO::PARAM_STR);
+            $stmt->bindValue(':pages_id', $pages_id, \PDO::PARAM_INT);
+            $stmt->bindValue(':templates_id', $templates_id, \PDO::PARAM_INT);
+            $stmt->bindValue(':operation', $operation, \PDO::PARAM_STR);
+            $stmt->bindValue(':data', $details, \PDO::PARAM_STR);
             $stmt->execute();
-        } catch(Exception $e) {
+        } catch(\Exception $e) {
             $this->error($e->getMessage());
         }
-        
     }
 
     /**
@@ -589,7 +582,6 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * Called only when this module is installed
      *
      * Creates new custom database table for storing data.
-     *
      */
     public function ___install() {
 
@@ -610,14 +602,12 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
         // tell the user that we've created new database table
         $this->message("Created Table: " . self::TABLE_NAME); 
-
     }
 
     /**
      * Called only when this module is uninstalled
      *
      * Drops database table created during installation.
-     *
      */
     public function ___uninstall() {
         $this->message("Deleting Table: " . self::TABLE_NAME);

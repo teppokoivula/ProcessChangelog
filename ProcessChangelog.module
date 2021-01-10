@@ -1,13 +1,12 @@
-<?php
+<?php namespace ProcessWire;
 
 /**
  * Process Changelog
  *
- * This module keeps track of changes (edits, additions, removals etc.) on
- * pages of your site. For detailed information, installation instructions
- * etc. see README.md.
+ * This module keeps track of changes (edits, additions, removals etc.) on pages of your site. For detailed information
+ * and installation instructions see README.md.
  *
- * @copyright 2013-2019 Teppo Koivula
+ * @copyright 2013-2021 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */ 
 class ProcessChangelog extends Process implements ConfigurableModule {
@@ -21,14 +20,14 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         return [
             'title' => __('Changelog'),
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
-            'href' => 'https://modules.processwire.com/modules/process-changelog/',
+            'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.7.1',
+            'version' => '1.8.0',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
             'permission' => 'changelog',
-            'requires' => 'PHP>=5.4',
+            'requires' => 'PHP>=5.4, ProcessWire>=3.0',
             'installs' => 'ProcessChangelogHooks',
         ];
     }
@@ -120,7 +119,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
     /**
      * Name of the database table used by this module
-     * 
+     *
+     * This is populated in __construct() based on the value from ProcessChangelogHooks module.
+     *
      * @var string
      */
     protected $table_name;
@@ -142,9 +143,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     /**
      * Array of optional permissions
      * 
-     * - If "changelog-remove" exists, user has to have it in order to
-     *   remove rows. If not, every user with access to this module can
-     *   also remove rows.
+     * - If "changelog-remove" exists, user has to have it in order to remove rows. If not,
+     *   every user with access to this module can also remove rows.
      * 
      * @var array
      */
@@ -322,7 +322,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         if (count(array_intersect(['operation', 'template', 'flags'], $this->visible_filters)) > 1) {
             $available_filters = $this->available_filters;
             $available_filters['operation']['options'] = array_merge(
-                [__("All operations on")],
+                [$this->_("All operations on")],
                 $this->operations
             );
             $this->available_filters = $available_filters;
@@ -356,22 +356,23 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $filters = $this->renderFilters();
         
         // setup admin data table
+        /** @var MarkupAdminDataTable */
         $table = $this->modules->get("MarkupAdminDataTable");
         $table->setEncodeEntities(false);
         $table->setClass('log');
         $table->headerRow([
-            __('When'),
-            __('Who'),
-            __('What'),
-            __('Remove'),
-            __('More')
+            $this->_('When'),
+            $this->_('Who'),
+            $this->_('What'),
+            $this->_('Remove'),
+            $this->_('More')
         ]);
         
         // fetch rows from database and add them to our data table
         $query = $this->buildQuery();
         $stmt = $this->database->prepare($query['query']); 
         $stmt->execute();
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             $table->row($this->parseTableRow($row));
         }
 
@@ -390,10 +391,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // UI translations
         $this->config->js('log', [
             'i18n' => [
-                'more' => __("more"),
-                'less' => __("less"),
-                'areYouSure' => __("Are you sure?"),
-                'removeFailed' => __("Sorry, remove failed"),
+                'more' => $this->_("more"),
+                'less' => $this->_("less"),
+                'areYouSure' => $this->_("Are you sure?"),
+                'removeFailed' => $this->_("Sorry, remove failed"),
             ],
         ]);
         
@@ -404,11 +405,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         
         // feed links
         $feeds = "<ul id='feeds'>";
-        $feeds .= "<li><a href='./rss/' target='_blank'>" . __('RSS') . "</a></li>";
+        $feeds .= "<li><a href='./rss/' target='_blank'>" . $this->_('RSS') . "</a></li>";
         if ($this->modules->isInstalled('ProcessChangelogRSS')) {
             $changelogRSS = $this->modules->get('ProcessChangelogRSS');
             if ($changelogRSS->feed_url && $changelogRSS->show_feed_link) {
-                $feeds .= "<li><a href='{$changelogRSS->feed_url}' target='_blank'>" . __('Public RSS') . "</a></li>";
+                $feeds .= "<li><a href='{$changelogRSS->feed_url}' target='_blank'>" . $this->_('Public RSS') . "</a></li>";
             }
         }
         $feeds .= "</ul>";
@@ -429,7 +430,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $query = $this->buildQuery();
         $stmt = $this->database->prepare($query['query']);
         $stmt->execute();
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) $data[] = $row;
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) $data[] = $row;
 
         // send header and output JSON
         header('Content-type: application/json');
@@ -444,28 +445,28 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     public function ___executeRSS() {
         
         // create rss element
-        $rss = new SimpleXMLElement('<rss/>');
+        $rss = new \SimpleXMLElement('<rss/>');
         $rss->addAttribute('version', '2.0');
 
         // create channel eelment
         $channel = $rss->addChild('channel');
-        $channel->addChild('title', __('Changelog'));
+        $channel->addChild('title', $this->_('Changelog'));
         $channel->addChild('link', $this->input->httpUrl . ($_GET ? '?' . htmlentities($this->input->queryString) : ''));
-        $channel->addChild('description', __('An automatically generated changelog for this site.'));
+        $channel->addChild('description', $this->_('An automatically generated changelog for this site.'));
         
         // fetch rows from database
         $data = [];
         $query = $this->buildQuery();
         $stmt = $this->database->prepare($query['query']);
         $stmt->execute();
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             $item = $channel->addChild('item');
             $item->addChild('title', $this->parseString($row));
             if ($row['data']) {
                 $details = json_decode($row['data'], true);
                 $item->addChild('description', $this->renderDetails($row['operation'], $details));
             } else {
-                $item->addChild('description', __("No data available."));
+                $item->addChild('description', $this->_("No data available."));
             }
             $item->addChild('link', 'http' . ($this->config->https ? 's' : '') . '://' . $this->config->httpHost . $this->config->urls->admin . 'page/edit/?id=' . (int) $row['pages_id']);
             $item->addChild('pubDate', date(DATE_RSS, strtotime($row['timestamp'])));
@@ -484,8 +485,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * Build SQL query for fetching changelog data from custom database table
      *
      * @param array $group_by Fields to group results by, such as "id"
-     * @return array Array with SQL query ('query'), total row count ('total'),
-     *         start ('start') and limit ('limit')
+     * @return array Array with SQL query ('query'), total row count ('total'), start ('start') and limit ('limit')
+     *
      * @throws WireException if template data can't be found
      * @throws WireException if template flag is not recognized
      */
@@ -555,7 +556,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                             $where[] = "(pages.templates_id {$operator} {$template['id']}"
                                      . " OR {$this->table_name}.templates_id {$operator} {$template['id']})";
                         } else {
-                            throw new WireException(sprintf(__("Template not found: %s"), $this->sanitizer->pageName($value)));
+                            throw new WireException(sprintf($this->_("Template not found: %s"), $this->sanitizer->pageName($value)));
                         }
                         break;
                     case "flags":
@@ -569,7 +570,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                             $where[] = "templates.flags & " . (int) $flag;
                             if ($negation) $where[count($where)-1] = "NOT(" . $where[count($where)-1] . ")";
                         } else {
-                            throw new WireException(sprintf(__("Flag not supported: %s"), $value)); 
+                            throw new WireException(sprintf($this->_("Flag not supported: %s"), $value));
                         }
                         break;
                     case "operation":
@@ -600,7 +601,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $sql = "SELECT COUNT({$count}) FROM {$this->table_name} {$joins} {$where}";
         $stmt = $this->database->prepare($sql); 
         $stmt->execute();
-        $row = $stmt->fetch(PDO::FETCH_NUM);
+        $row = $stmt->fetch(\PDO::FETCH_NUM);
         $total = reset($row);
         
         // put together LIMIT
@@ -668,6 +669,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // timestamp (raw timestamp is hidden and only included to allow proper sorting with JavaScript)
         $date = $this->date_format ? date($this->date_format, strtotime($row['timestamp'])) : $row['timestamp'];
+        $date = str_replace('-', '‑', $date);
         $data[] = "<span hidden>{$row['timestamp']}</span>{$date}";
 
         // username
@@ -678,27 +680,27 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $filter = " <a class='ajax action{$selected}' href='?{$query_string}'><i class='fa fa-filter'></i></a>";
         if ($row['username'] == 'guest') {
             // guest user, no need to show an edit link
-            $data[] = "<span class='user guest'>" . __('guest') . "</span>{$filter}";
+            $data[] = "<span class='user guest'>" . $this->_('guest') . "</span>{$filter}";
         } else {
             // check if user still exists and if yes, provide an edit link
             $user = $this->users->get((int) $row['user_id']);
             if ($user->id) {
                 $data[] = "<a class='user' href='{$this->config->urls->admin}access/users/edit/?id={$user->id}'>{$user->name}</a>{$filter}";
             } else {
-                $data[] = "<span class='user deleted' title='" . __("deleted") . "'>{$row['username']}</span>{$filter}";
+                $data[] = "<span class='user deleted' title='" . $this->_("deleted") . "'>{$row['username']}</span>{$filter}";
             }
         }
 
         // translatable operations
-        // __('added')
-        // __('moved')
-        // __('edited')
-        // __('trashed')
-        // __('renamed')
-        // _x('deleted', 'operation')
-        // __('restored')
-        // __('published')
-        // __('unpublished')
+        // $this->_('added')
+        // $this->_('moved')
+        // $this->_('edited')
+        // $this->_('trashed')
+        // $this->_('renamed')
+        // $this->_x('deleted', 'operation')
+        // $this->_('restored')
+        // $this->_('published')
+        // $this->_('unpublished')
 
         // variables we're going to need later
         $target = "";
@@ -711,8 +713,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // start putting together human-readable version of what happened
         switch ($operation) {
             case 'renamed':
-                $target .= "<span class='page'>" . $details["Previous $key"] . "</span>"
-                        . " <strong>" . __("as") . "</strong>" // as // In context of a rename operation ("renamed old-page-name as new-page-name")
+                $previous_value = isset($details["Previous $key"]) ? $details["Previous $key"] : '(' . $this->_('empty') . ')';
+                $target .= "<span class='page'>" . $previous_value . "</span>"
+                        . " <strong>" . $this->_("as") . "</strong>" // as // In context of a rename operation ("renamed old-page-name as new-page-name")
                         . " <span class='page'>" . $details[ucfirst($key)] . "</span>";
                 break;
             case 'trashed':
@@ -727,7 +730,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             if ($page->editable()) {
                 // append edit link to target
                 $href = "{$this->config->urls->admin}page/edit/?id={$page->id}";
-                $target .= " &nbsp; <a class='action edit-page' href='{$href}'>" . __('edit page') . "</a>";
+                $target .= " &nbsp; <a class='action edit-page' href='{$href}'>" . $this->_('edit page') . "</a>";
             }
         } else if ($row['templates_id']) {
             $template = $this->templates->get((int) $row["templates_id"]);
@@ -736,7 +739,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         if ($template) {
             $template_icons = "";
             if ($template->flags & Template::flagSystem) {
-                $template_icons .= " <i class='fa fa-gear' title='" . __("System template") . "'></i>";
+                $template_icons .= " <i class='fa fa-gear' title='" . $this->_("System template") . "'></i>";
             }
             $template_label = $template->label ? $template->label : $template;
             if (in_array('template', $this->visible_filters)) {
@@ -750,11 +753,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             }
         } else {
             // template is unknown or has been deleted
-            $template = "<strong class='deleted'>" . __('deleted') . "</strong>";
+            $template = "<strong class='deleted'>" . $this->_('deleted') . "</strong>";
         }
 
         // "deleted" is only phrase used in multiple contexts
-        if ($operation != 'deleted') $operation_i18n = __($operation);
+        if ($operation != 'deleted') $operation_i18n = $this->_($operation);
         else $operation_i18n = _x($operation, 'operation');
 
         $selected = $this->input->get->operation == $operation ? ' selected' : '';
@@ -765,13 +768,13 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // link for removing individual row
         if (!$this->optional_permissions['remove']->id || $this->user->hasPermission($this->optional_permissions['remove'])) {
-            $data[] = "<a href='./delete/?id={$row['id']}' class='action remove-row'>" . __("remove?") . "</a>";
+            $data[] = "<a href='./delete/?id={$row['id']}' class='action remove-row'>" . $this->_("remove?") . "</a>";
         } else {
             $data[] = "";
         }
 
         // more details about page in question
-        $data[] = $details ? $this->renderDetails($operation, $details) : __("No data available.");
+        $data[] = $details ? $this->renderDetails($operation, $details) : $this->_("No data available.");
 
         return $data;
 
@@ -811,10 +814,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // user
         $user = $this->users->get($row['user_id']);
-        $out[] = $user->id ? $user->name : $row['username'] . " (" . __("deleted") . ")";
+        $out[] = $user->id ? $user->name : $row['username'] . " (" . $this->_("deleted") . ")";
 
         // operation
-        $operation_i18n = __($row['operation']);
+        $operation_i18n = $this->_($row['operation']);
         if ($row['operation'] == "deleted") $operation_i18n = _x($row['operation'], 'operation');
         $out[] = $operation_i18n;
         
@@ -826,14 +829,14 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         } else if ($row["templates_id"] && $this->templates->get($row["templates_id"])) {
             $template = $this->templates->get($row["templates_id"]);
         }
-        $out[] = $template ? ($template->label ?: $template) : __("Page");
+        $out[] = $template ? ($template->label ?: $template) : $this->_("Page");
         
         // target
         $details = json_decode($row['data'], true);
         $key = $this->row_label == 'url' ? 'page URL' : 'page name';
         switch ($row['operation']) {
             case 'renamed':
-                $out[] = $details["Previous $key"] . " " . __("as") . " " . $details[ucfirst($key)];
+                $out[] = $details["Previous $key"] . " " . $this->_("as") . " " . $details[ucfirst($key)];
                 break;
             case 'trashed':
                 $out[] = $details["Previous $key"] . " (" . $details[ucfirst($key)] . ")";
@@ -932,24 +935,24 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $class = $operation ? " icon-{$operation}" : "";
 
         // translatable phrases
-        // __('Previous page name')
-        // __('Current page name')
-        // __('Page name')
-        // __('Page title')
-        // __('Parent page')
-        // __('Previous parent page')
-        // __('Page URL')
-        // __('Previous URL')
-        // __('Current URL')
-        // __('Fields edited')
-        // __('Caller')
+        // $this->_('Previous page name')
+        // $this->_('Current page name')
+        // $this->_('Page name')
+        // $this->_('Page title')
+        // $this->_('Parent page')
+        // $this->_('Previous parent page')
+        // $this->_('Page URL')
+        // $this->_('Previous URL')
+        // $this->_('Current URL')
+        // $this->_('Fields edited')
+        // $this->_('Caller')
 
         foreach ($details as $key => $value) {
             // escape key and value
             $key = htmlentities($key);
             $value = htmlentities($value);
             // generate markup
-            $markup .= "<tr><th>" . __($key) . "</th><td>{$value}</td></tr>";
+            $markup .= "<tr><th>" . $this->_($key) . "</th><td>{$value}</td></tr>";
         }
         
         return "<table class='details{$class}'>{$markup}</table>";
@@ -959,22 +962,23 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     /**
      * Executed when requesting removal of an individual row
      * 
-     * @return boolean
-     * @throws WirePermissionException if changelog-remove permission exists
-     *         but the current user doesn't have it.
+     * @return int|false
+     *
+     * @throws WirePermissionException if changelog-remove permission exists but the current user doesn't have it
      */
     public function ___executeDelete() {
         if (!$this->optional_permissions['remove']->id || $this->user->hasPermission($this->optional_permissions['remove'])) {
-            if ((int) $this->input->get->id != $this->input->get->id) return false;
+            if ((int) $this->input->get->id != $this->input->get->id) {
+                return false;
+            }
             $id = (int) $this->input->get->id;
             $sql = "DELETE FROM {$this->table_name} WHERE id=:id LIMIT 1";
             $stmt = $this->database->prepare($sql); 
-            $stmt->bindValue(':id', $id, PDO::PARAM_INT); 
+            $stmt->bindValue(':id', $id, \PDO::PARAM_INT);
             $stmt->execute();
             return 1;
-        } else {
-            throw new WirePermissionException(__("You do not have the permission required by this action."));
         }
+        throw new WirePermissionException($this->_("You do not have the permission required by this action."));
     }
 
     /**
@@ -1011,11 +1015,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $stmt->execute(); 
             $rowCount = $stmt->rowCount();
             if (!$rowCount || $rowCount > 1) {
-                $options[] = __("pages");
+                $options[] = $this->_("pages");
             }
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
                 $template = $this->getCacheTemplate(null, (int) $row['templates_id']);
-                $key = sprintf(__("%s pages"), $template['label']); // %s pages // %s will be replaced run-time by template
+                $key = sprintf($this->_("%s pages"), $template['label']); // %s pages // %s will be replaced run-time by template
                 $options[$key] = $template['name'];
             }
             $markup .= $this->renderSelect('template', $options);
@@ -1026,9 +1030,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $options = $this->available_filters['flags']['options'];
             if (!in_array('template', $this->visible_filters)) {
                 foreach ($options as $option => $value) {
-                    $new_option = $option ? __("pages ") . $option : 0; // pages // In context of flags ("pages with system flags" etc.)
+                    $new_option = $option ? $this->_("pages ") . $option : 0; // pages // In context of flags ("pages with system flags" etc.)
                     if ($new_option) unset($options[$option]);
-                    else $value = __("pages ") . $value;
+                    else $value = $this->_("pages ") . $value;
                     $options[$new_option] = $value;
                 }
             }
@@ -1076,18 +1080,15 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $stmt = $this->database->prepare($sql);
             $stmt->execute();
             $rowCount = $stmt->rowCount();
+            $markup .= "<span class='text-label'>"
+                . (in_array("operation", $this->visible_filters) ? $this->_('by')
+                    : $this->_('modified by'))
+                . "</span>";
             if (!$rowCount || $rowCount > 1) {
-                $options[] = __("by any user");
+                $options[] = $this->_('any user');
             }
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                if ($row['username'] == "guest") {
-                    $key = __("by guest");
-                } else {
-                    $key = sprintf(__("by %s"), $row['username']); // by %s // %s will be replaced run-time by username
-                }
-                if (!in_array("operation", $this->visible_filters)) {
-                    $key = sprintf(__("modified %s"), $key); // modified %s // %s will be replaced run-time with "by [username]"
-                }
+            while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                $key = $row['username'] == "guest" ? $this->_("guest") : $row['username'];
                 $options[$key] = $row['username'];
             }
             $markup .= $this->renderSelect('username', $options);
@@ -1099,14 +1100,14 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             if (in_array('when', $this->visible_filters)) {
                 $options = $this->available_filters['when']['options'];
                 if (in_array('date_range', $this->visible_filters)) {
-                    $options[__("between")] = "between";
+                    $options[$this->_("between")] = "between";
                 }
                 $markup .= $this->renderSelect('when', $options);
             }
             
             // date range
             if (in_array('date_range', $this->visible_filters)) {
-                $disabled_title = __("Not relevant in this context");
+                $disabled_title = $this->_("Not relevant in this context");
                 $date_from = $this->input->get->date_from ? date('d.m.Y', strtotime($this->input->get->date_from)) : '';
                 $date_until = $this->input->get->date_until ? date('d.m.Y', strtotime($this->input->get->date_until)) : '';
                 $input = $this->modules->get("InputfieldText");
@@ -1141,16 +1142,18 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 'pages_id' => null,
             ]);
             $href = $query_string ? "?{$query_string}" : "./";
-            $markup .= "<p>" . __('Displaying results for one page only.') . " "
-                     . "<a class='ajax' href='{$href}'>" . __('Clear page filter.') . "</a></p>";
+            $markup .= "<p>" . $this->_('Displaying results for one page only.') . " "
+                     . "<a class='ajax' href='{$href}'>" . $this->_('Clear page filter.') . "</a></p>";
         }
 
         if ($markup) {
+            /** @var InputfieldForm */
             $form = $this->modules->get('InputfieldForm');
             $form->attr('id', 'filters');
             $form->attr('method', 'get');
+            /** @var InputfieldFieldset */
             $fieldset = $this->modules->get('InputfieldFieldset');
-            $fieldset->label = __('Filters');
+            $fieldset->label = $this->_('Filters');
             $fieldset->icon = 'filter';
             $field = $this->modules->get('InputfieldMarkup');
             $field->markupText = $markup;
@@ -1192,7 +1195,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             if (isset($settings['translate'])) {
                 // phrase "deleted" is used in multiple contexts
                 if ($text == "deleted") $text = _x($text, $name);
-                else $text = __($text);
+                else $text = $this->_($text);
             }
             $selected = $this->input->get->$name == $value ? ' selected="selected"' : '';
             $markup .= "<option{$selected} value='{$value}'>{$text}</option>";
@@ -1209,8 +1212,8 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * If cache doesn't yet contain data for requested template, fill it in now
      * and return newly stored data.
      * 
-     * @param string $name Name of template
-     * @param int $id ID of template
+     * @param string|null $name Name of template
+     * @param int|null $id ID of template
      * @return array Template data
      */
     private function getCacheTemplate($name = null, $id = null) {
@@ -1233,7 +1236,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 $stmt = $this->database->prepare($sql);
                 $stmt->execute();
                 if ($stmt->rowCount()) {
-                    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
                     $data = json_decode($row['data'], true);
                     $template_name = isset($data['Template name']) ? $data['Template name'] : "[{$row['templates_id']}]";
                     $template_data = [

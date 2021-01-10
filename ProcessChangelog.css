@@ -51,6 +51,11 @@ form#filters div.filter:not(.no-icon)::before {
     right: 0.75em;
 }
 
+form#filters span.text-label {
+    display: inline-block;
+    margin-right: 1%;
+}
+
 #ui-datepicker-div {
     font-size: 12px;
     line-height: 14px;
@@ -101,7 +106,7 @@ table.log span {
     display: inline-block;
 }
 
-table.log span:not(.user):not(.hidden) {
+table.log span:not(.user) {
     padding: 4px 10px;
 }
 
