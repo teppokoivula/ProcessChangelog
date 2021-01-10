@@ -120,7 +120,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     /**
      * Name of the database table used by this module
      *
-     * This is populated in __construct() based on the value from ProcessLoginHistoryHooks module.
+     * This is populated in __construct() based on the value from ProcessChangelogHooks module.
      *
      * @var string
      */
