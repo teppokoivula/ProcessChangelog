@@ -668,9 +668,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         }
 
         // timestamp (raw timestamp is hidden and only included to allow proper sorting with JavaScript)
-        if ($this->date_format) {
-            $this->date_format = str_replace('-', '|', $this->date_format);
-		}
         $date = $this->date_format ? date($this->date_format, strtotime($row['timestamp'])) : $row['timestamp'];
         $date = str_replace('-', '‑', $date);
         $data[] = "<span hidden>{$row['timestamp']}</span>{$date}";
