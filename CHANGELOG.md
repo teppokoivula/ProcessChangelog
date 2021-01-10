@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2020-01-10
+
+### Changed
+- Added ProcesWire namespace and bumped required ProcessWire version to 3.0+.
+- Minor JavaScript and GUI improvements.
+
+### Fixed
+- Changing filters restores uk-select class for select elements when using the Uikit admin theme.
+- System notification changes are no longer logged as field edit operations on the User page.
+
 ## [1.7.1] - 2019-10-13
 
 ### Changed
