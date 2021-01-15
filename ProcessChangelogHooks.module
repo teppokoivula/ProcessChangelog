@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.6.0',
+            'version' => '1.7.0',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -318,7 +318,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
         // variables from event
         $page = $event->arguments[0];
-        $field = isset($event->arguments[1]) ? $event->arguments[1] : null;
+        $field = isset($event->arguments[1]) && $event->arguments[1] instanceof Field ? $event->arguments[1] : null;
         $operation = $event->method == "saveReady" || $event->method == "saveFieldReady" ? "edited" : $event->method;
 
         // check if this event should be logged

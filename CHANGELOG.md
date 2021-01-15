@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2021-01-15
+
+### Changed
+- Bumped required PHP version to 7.1.
+
+### Fixed
+- More through validation for "field" argument before it gets passed to ProcesChangelogHooks::shouldLogPageEvent(), avoid type mismatch.
+
 ## [1.9.0] - 2021-01-15
 
 ### Added

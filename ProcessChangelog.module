@@ -22,12 +22,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.9.0',
+            'version' => '1.10.0',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
             'permission' => 'changelog',
-            'requires' => 'PHP>=5.4, ProcessWire>=3.0',
+            'requires' => 'PHP>=7.1, ProcessWire>=3.0',
             'installs' => 'ProcessChangelogHooks',
         ];
     }
