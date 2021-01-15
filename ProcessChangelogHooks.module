@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.5.0',
+            'version' => '1.6.0',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -316,40 +316,15 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      */
     public function logPageEvent(HookEvent $event) {
 
+        // variables from event
         $page = $event->arguments[0];
         $field = isset($event->arguments[1]) ? $event->arguments[1] : null;
+        $operation = $event->method == "saveReady" || $event->method == "saveFieldReady" ? "edited" : $event->method;
 
-        // don't log notifications
-        if ($event->method == "saveFieldReady" && $field == "notifications" && $page instanceof User) return;
-
-        // don't log operations for repeaters or admin pages
-        if ($page instanceof RepeaterPage || $page->template == "admin") return;
-        
-        // don't log operations for ignored templates
-        if (!empty($this->ignored_templates) && in_array($page->template->id, $this->ignored_templates)) return;
-
-        // don't log operations by ignored user roles
-        if (!empty($this->ignored_roles)) {
-            foreach ($this->ignored_roles as $ignored_role) {
-                if ($ignored_role == $this->config->guestUserRolePageID) {
-                    // Note: guest role needs special treatment, or ignoring it wouldn't be of any
-                    // real use. In this case we'll only ignore users with **only** the guest role.
-                    if ($this->user->roles->count == 1) return;
-                } else if ($this->user->hasRole($ignored_role)) {
-                    return;
-                }
-            }
+        // check if this event should be logged
+        if (!$this->shouldLogPageEvent($page, $field, $operation)) {
+            return;
         }
-
-        // don't log operations by ignored users
-        if (!empty($this->ignored_users) && in_array($this->user->id, $this->ignored_users)) return;
-
-        // grab operation from event
-        $operation = $event->method;
-        if ($operation == "saveReady" || $operation == "saveFieldReady") $operation = "edited";
-
-        // only continue if this operation is set to be logged
-        if (!in_array($operation, $this->operations)) return;
 
         $fields_edited = [];
         if ($operation == "edited") {
@@ -451,6 +426,59 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         if ($page->isChanged('status') && !in_array($operation, ["unpublished", "published", "hid", "unhid"])) {
             $this->triggerStatusEvents($event);
         }
+    }
+
+    /**
+     * Should we log this Page event?
+     *
+     * @param Page $page
+     * @param Field|null $field
+     * @param string $operation
+     * @return bool
+     */
+    protected function ___shouldLogPageEvent(Page $page, ?Field $field, $operation) {
+
+        // don't log notifications
+        if ($operation == "edited" && $field == "notifications" && $page instanceof User) {
+            return false;
+        }
+
+        // don't log operations for repeaters or admin pages
+        if ($page instanceof RepeaterPage || $page->template == "admin") {
+            return false;
+        }
+
+        // don't log operations for ignored templates
+        if (!empty($this->ignored_templates) && in_array($page->template->id, $this->ignored_templates)) {
+            return false;
+        }
+
+        // don't log operations by ignored user roles
+        if (!empty($this->ignored_roles)) {
+            foreach ($this->ignored_roles as $ignored_role) {
+                if ($ignored_role == $this->config->guestUserRolePageID) {
+                    // Note: guest role needs special treatment, or ignoring it wouldn't be of any
+                    // real use. In this case we'll only ignore users with **only** the guest role.
+                    if ($this->user->roles->count == 1) {
+                        return false;
+                    }
+                } else if ($this->user->hasRole($ignored_role)) {
+                    return false;
+                }
+            }
+        }
+
+        // don't log operations by ignored users
+        if (!empty($this->ignored_users) && in_array($this->user->id, $this->ignored_users)) {
+            return false;
+        }
+
+        // only continue if this operation is set to be logged
+        if (!in_array($operation, $this->operations)) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
