@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2021-03-07
+
+### Added
+- Support for schema updates requiring manual triggering by superuser. Useful for cases where the update may take a while to run, such as update #3 which adds new indexes to the existing database table.
+
 ## [1.10.0] - 2021-01-15
 
 ### Changed
