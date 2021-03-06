@@ -77,7 +77,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * 
      * @param int
      */
-    const SCHEMA_VERSION = 2;
+    const SCHEMA_VERSION = 3;
 
     /**
      * Populate the default config data
@@ -215,6 +215,16 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             3 => __("For superusers only"),
         ]);
         $field->value = $data[$field->name];
+        $fields->add($field);
+
+        // database schema version
+        $field = $modules->get("InputfieldInteger");
+        $field->name = "schema_version";
+        $field->label = __("Schema version");
+        $field->icon = 'warning';
+        $field->value = $data['schema_version'];
+        $field->collapsed = Inputfield::collapsedYes;
+        $field->notes = __("Under normal circumstances you should never have to manually modify this field. It can, however, be used to skip over a specific schema update or let Proces Changelog Hooks know that you've applied the update manually via the database.");
         $fields->add($field);
 
         return $fields;
@@ -582,24 +592,55 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      *
      * This method applies incremental updates until latest schema version is
      * reached, while also keeping schema_version config setting up to date.
+     *
+     * @param bool $force Force schema update, ignoring any checks.
      * 
      * @throws WireException if database schema version isn't recognized
      * @throws WireException if updating schema to specific version fails
      */
-    private function updateDatabaseSchema() {
-        while ($this->schema_version < self::SCHEMA_VERSION) {
+    public function updateDatabaseSchema($force = false) {
+        $can_update = true;
+        while ($can_update && $this->schema_version < self::SCHEMA_VERSION) {
             ++$this->schema_version;
             switch ($this->schema_version) {
                 case 2:
-                    $sql = "ALTER TABLE " . self::TABLE_NAME . " ADD templates_id INT(10) UNSIGNED NOT NULL DEFAULT 0 AFTER pages_id";
+                    $sql = "ALTER TABLE `" . self::TABLE_NAME . "` ADD `templates_id` INT(10) UNSIGNED NOT NULL DEFAULT 0 AFTER `pages_id`";
+                    break;
+                case 3:
+                    $can_update = $force || ($this->user->isSuperuser() && $this->input->get->update_changelog_database_schema == 3);
+                    if ($can_update) {
+                        set_time_limit(600);
+                        $sql = "ALTER TABLE `" . self::TABLE_NAME . "` ADD INDEX `templates_id` (`templates_id`), ADD INDEX `username` (`username`), ADD INDEX `pages_id` (`pages_id`)";
+                    }
                     break;
                 default:
                     throw new WireException("Unrecognized database schema version: {$this->schema_version}");
             }
-            if ($sql && $this->database->exec($sql) !== false) {
+            if ($can_update && $this->database->exec($sql) !== false) {
                 $configData = $this->modules->getModuleConfigData($this);
                 $configData['schema_version'] = $this->schema_version;
                 $this->modules->saveModuleConfigData($this, $configData);
+                if ($this->user->isSuperuser()) {
+                    $this->message(sprintf(
+                        $this->_('Changelog database schema updated (#%d).'),
+                        $this->schema_version
+                    ));
+                }
+            } else if (!$can_update) {
+                // this update needs to be triggered manually by superuser, just in case; fall back to previous schema
+                // version and display a notification for superusers
+                --$this->schema_version;
+                if ($this->user->isSuperuser()) {
+                    $this->message(sprintf(
+                        $this->_('Changelog has pending schema update (#%d). This update may take a while to complete. If an error occurs, please see README.md for instructions. %s.'),
+                        $this->schema_version + 1,
+                        sprintf(
+                            '<a href="%s">%s</a>',
+                            $this->config->urls->admin . 'module/edit/?name=ProcessChangelogHooks&update_changelog_database_schema=3',
+                            $this->_('Update schema now'),
+                        )
+                    ), Notice::allowMarkup);
+                }
             } else {
                 throw new WireException("Couldn't update database schema to version {$this->schema_version}");
             }
@@ -629,7 +670,10 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $this->database->exec($sql);
 
         // tell the user that we've created new database table
-        $this->message("Created Table: " . self::TABLE_NAME); 
+        $this->message("Created Table: " . self::TABLE_NAME);
+
+        // update database schema, overriding any checks
+        $this->updateDatabaseSchema(true);
     }
 
     /**

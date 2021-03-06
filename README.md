@@ -59,6 +59,34 @@ your key is as difficult to guess as possible (and never use key 1234567890).
 If you are unsure about whether you really need this feature, please leave
 the Process Changelog RSS module uninstalled.
 
+### Schema update instructions
+
+This module updates the database schema automatically, but there may be cases
+where an update doesn't work as expected, particularly if you've got *a lot*
+of data in your database table(s).
+
+If an error occurs, you can run schema update manually. Easiest way to trigger
+this would be creating a simple bootstrap script and running it on the server:
+
+```
+<?php
+
+// place this script in your site's root directory, at the same level as the
+// ProcessWire index.php file
+
+require __DIR__ . '/index.php';
+$changelog = $wire->modules->get('ProcessChangelogHooks');
+$changelog->updateDatabaseSchema(true);
+```
+
+This may take a while to run, but shouldn't result in a timeout, which is the
+most likely cause for errors when running schema updates via admin.
+
+If you are unable to run the schema update this way, you may perform expected
+changes (see ProcessChangelogHooks::updateDatabaseSchema() for applicable SQL
+command(s)) directly in the database and then manually update "schema version"
+setting in Process Changelog Hooks module config.
+
 ## Settings
 
 This module contains a bunch of settings you should be aware of. Settings can
