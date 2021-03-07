@@ -101,23 +101,20 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      */
     public function getModuleConfigInputfields(array $data) {
 
-        // this is a container for fields, basically like a fieldset
+        // container for fields
         $fields = new InputfieldWrapper();
-
-        // reference to the modules API variable
-        $modules = wire('modules');
 
         // merge default config settings (custom values overwrite defaults)
         $defaults = self::getDefaultData();
         $data = array_merge($defaults, $data);
 
-        // check for schema update
+        // check for a schema update
         if ($data['schema_version'] < self::SCHEMA_VERSION) {
             $this->message($this->getDatabaseSchemaUpdateNotice(), Notice::allowMarkup);
         }
 
         // logging settings
-        $logging = $modules->get("InputfieldFieldset");
+        $logging = $this->modules->get("InputfieldFieldset");
         $logging->name = "logging";
         $logging->label = __("Logging");
         $logging->description = __("These settings define which actions and what kind of data gets logged.");
@@ -125,7 +122,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $fields->add($logging);
 
         // which operations should be tracked?
-        $field = $modules->get("InputfieldCheckboxes");
+        $field = $this->modules->get("InputfieldCheckboxes");
         $field->name = "operations";
         $field->label = __("Operations");
         $field->addOptions($defaults['operations']);
@@ -137,7 +134,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $logging->add($field);
 
         // should caller (script or URL that triggered this action) be logged?
-        $field = $modules->get("InputfieldSelect");
+        $field = $this->modules->get("InputfieldSelect");
         $field->name = "log_caller";
         $field->label = __("Caller logging");
         $field->description = __("Enable logging of path/URL for script that triggered action?");
@@ -152,7 +149,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $logging->add($field);
 
         // ignore settings
-        $ignore_settings = $modules->get("InputfieldFieldset");
+        $ignore_settings = $this->modules->get("InputfieldFieldset");
         $ignore_settings->name = "ignore_settings";
         $ignore_settings->label = $this->_("Ignore settings");
         $ignore_settings->description = $this->_("These options control which templates, fields, roles, and users *don't* get logged. Keep in mind, though, that making changes here will not erase any existing data.");
@@ -160,7 +157,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $fields->add($ignore_settings);
         
         // templates that should be ignored when logging changes
-        $field = $modules->get("InputfieldAsmSelect");
+        $field = $this->modules->get("InputfieldAsmSelect");
         $field->name = "ignored_templates";
         $field->label = __("Ignored templates");
         $field->description = __("Ignore these templates when logging changes.");
@@ -171,7 +168,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $ignore_settings->add($field);
 
         // fields that should be ignored when logging changes
-        $field = $modules->get("InputfieldAsmSelect");
+        $field = $this->modules->get("InputfieldAsmSelect");
         $field->name = "ignored_fields";
         $field->label = __("Ignored fields");
         $field->description = __("Ignore these fields when logging changes.");
@@ -182,7 +179,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $ignore_settings->add($field);
         
         // roles that should be ignored when logging changes
-        $field = $modules->get("InputfieldAsmSelect");
+        $field = $this->modules->get("InputfieldAsmSelect");
         $field->name = "ignored_roles";
         $field->label = __("Ignored roles");
         $field->description = __("Ignore these roles when logging changes.");
@@ -196,7 +193,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $ignore_settings->add($field);
 
         // users that should be ignored when logging changes
-        $field = $modules->get("InputfieldAsmSelect");
+        $field = $this->modules->get("InputfieldAsmSelect");
         $field->name = "ignored_users";
         $field->label = __("Ignored users");
         $field->description = __("Ignore these users when logging changes.");
@@ -210,7 +207,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $ignore_settings->add($field);
 
         // data retention settings
-        $data_retention = $modules->get("InputfieldFieldset");
+        $data_retention = $this->modules->get("InputfieldFieldset");
         $data_retention->name = "data_retention";
         $data_retention->label = __("Data retention");
         $data_retention->description = __("These settings define how long collected data should be retained for, as well as the circumstances under which it may be erased.");
@@ -218,13 +215,13 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $fields->add($data_retention);
 
         // for how long should collected data be retained?
-        $field = $modules->get("InputfieldSelect");
+        $field = $this->modules->get("InputfieldSelect");
         $field->name = "data_max_age";
         $field->label = __("Data max age");
         $field->description = __("For how long should we retain collected data?");
         $field->notes = __("Automatic cleanup requires LazyCron module, which isn't currently installed.");
         $field->icon = "calendar";
-        if ($modules->isInstalled("LazyCron")) {
+        if ($this->modules->isInstalled("LazyCron")) {
             $field->addOptions([
                 '1 WEEK' => __('1 week'),
                 '2 WEEK' => __('2 weeks'),
@@ -241,7 +238,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $data_retention->add($field);
 
         // alternative to predefined intervals: number of days to retain collected data
-        $field = $modules->get("InputfieldInteger");
+        $field = $this->modules->get("InputfieldInteger");
         $field->name = "data_max_age_days";
         $field->label = __("Data max age in days");
         $field->description = __("This setting provides more granular control over the data retention period.");
@@ -251,7 +248,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $data_retention->add($field);
 
         // additional settings
-        $additional_settings = $modules->get("InputfieldFieldset");
+        $additional_settings = $this->modules->get("InputfieldFieldset");
         $additional_settings->name = "additional_settings";
         $additional_settings->label = __("Additional settings");
         $additional_settings->description = __("Miscellaneous settings for adjusting the behaviour of the module.");
@@ -259,7 +256,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $fields->add($additional_settings);
 
         // should a Changelog section be added to the Settings tab of the page editor?
-        $field = $modules->get("InputfieldSelect");
+        $field = $this->modules->get("InputfieldSelect");
         $field->name = "page_edit_changelog";
         $field->label = __("Add Changelog to the page editor");
         $field->description = __("Add a Changelog section to the Settings tab of the page editor?");
@@ -276,7 +273,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $additional_settings->add($field);
 
         // database schema version
-        $field = $modules->get("InputfieldInteger");
+        $field = $this->modules->get("InputfieldInteger");
         $field->name = "schema_version";
         $field->label = __("Schema version");
         $field->icon = "warning";
@@ -813,7 +810,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * Drops database table created during installation.
      */
     public function ___uninstall() {
-        $this->message("Deleting Table: " . self::TABLE_NAME);
+        $this->message("Removing database table: " . self::TABLE_NAME);
         $this->database->exec("DROP TABLE IF EXISTS " . self::TABLE_NAME);
     }
     

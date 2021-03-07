@@ -214,19 +214,29 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         );
         $data = array_merge($defaults, $data);
 
+        // visibility settings, grouped together by fieldset
+        $display = $modules->get("InputfieldFieldset");
+        $display->label = __("Display settings");
+        $display->description = __("These settings control what (and how much) information gets displayed on the changelog page in admin.");
+        $display->icon = "paint-brush";
+        $fields->add($display);
+
         // date format used
         $field = $modules->get("InputfieldText");
         $field->name = "date_format";
         $field->label = __("Date Format");
         $field->notes = sprintf(__("See the %s function reference for more information on how to customize this format."), "[PHP date](http://www.php.net/manual/en/function.date.php)"); // Date format notes // %s will be replaced by a link to date section of PHP manual run-time
+        $field->icon = "calendar";
         $field->value = $data['date_format'] ? $data['date_format'] : $defaults['date_format'];
-        $fields->add($field);
+        $display->add($field);
 
         // number of results visible at once
         $field = $modules->get("InputfieldSelect");
         $field->name = "row_limit";
         $field->label = __("Row Limit");
         $field->description = __("Number of rows visible at once");
+        $field->icon = "scissors";
+        $field->columnWidth = 50;
         $field->required = true;
         $field->addOptions([
             25 => '25',
@@ -235,50 +245,58 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             100 => '100',
         ]);
         $field->value = $data['row_limit'];
-        $fields->add($field);
+        $display->add($field);
 
         // field to use as row label
         $field = $modules->get("InputfieldSelect");
         $field->name = "row_label";
         $field->label = __("Row Label");
         $field->description = __("Which field should be used as row label?");
+        $field->icon = "tag";
+        $field->columnWidth = 50;
         $field->required = true;
         $field->addOptions([
             'name' => __("Page name"),
             'url' => __("Page URL"),
         ]);
         $field->value = $data['row_label'];
-        $fields->add($field);
+        $display->add($field);
 
         // visibility settings, grouped together by fieldset
-        $fieldset_visibility = $modules->get("InputfieldFieldset");
-        $fieldset_visibility->label = __("Visibility settings");
-        $fieldset_visibility->collapsed = true;
+        $visibility = $modules->get("InputfieldFieldset");
+        $visibility->label = __("Visibility settings");
+        $visibility->description = __("These settings control which filters and options are displayed in the changelog admin page.");
+        $visibility->icon = "eye";
+        $fields->add($visibility);
 
         // visible filters
         $field = $modules->get("InputfieldCheckboxes");
         $field->name = "visible_filters";
         $field->label = __("Visible filters");
         $field->notes = __("Unchecking all filters completely hides filters area.");
+        $field->icon = "filter";
         foreach ($data['available_filters'] as $name => $filter) {
             $field->addOption($name, $filter['label']);
         }
         $field->value = $data['visible_filters'];
-        $fieldset_visibility->add($field);
+        $visibility->add($field);
 
         // values for hidden filters
-        $fieldset = $modules->get("InputfieldFieldset");
-        $fieldset->label = __("Values for hidden filters");
-        $fieldset->notes = __("Filters not listed here are ignored when hidden.");
-        foreach ($data['available_filters'] as $name => $filter) {
-            if (!$filter['options']) continue;
+        $hidden_filter_values = $modules->get("InputfieldFieldset");
+        $hidden_filter_values->label = __("Values for hidden filters");
+        $hidden_filter_values->description = __("These are used as the default values for hidden filters.");
+        $hidden_filter_values->notes = __("Filters not listed here are ignored when hidden.");
+        $hidden_filter_values->icon = "eye-slash";
+        foreach ($data["available_filters"] as $name => $filter) {
+            if (!$filter["options"]) continue;
             $field = $modules->get("InputfieldSelect");
-            $field->name = 'default_for_' . $name;
-            $field->label = $filter['label'];
-            foreach ($filter['options'] as $key => $option) {
-                $value = $key ? $option : '';
+            $field->name = "default_for_" . $name;
+            $field->label = $filter["label"];
+            $field->icon = "cog";
+            foreach ($filter["options"] as $key => $option) {
+                $value = $key ? $option : "";
                 $text = !is_numeric($key) ? $key : $option;
-                if ($filter['translate']) {
+                if ($filter["translate"]) {
                     if ($text == "deleted" && $name == "operation") {
                         // "deleted" is used in multiple contexts
                         $text = _x($text, $name);
@@ -288,28 +306,29 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 }
                 $field->addOption($value, $text);
             }
-            if (isset($data['default_for_' . $name])) {
-                $field->value = $data['default_for_' . $name];
+            if (isset($data["default_for_" . $name])) {
+                $field->value = $data["default_for_" . $name];
             }
-            $fieldset->add($field);
+            $hidden_filter_values->add($field);
         }
-        $fieldset_visibility->add($fieldset);
-
-        $fields->add($fieldset_visibility);
+        $visibility->add($hidden_filter_values);
 
         // RSS settings
-        $fieldset_rss = $modules->get("InputfieldFieldset");
-        $fieldset_rss->label = __("RSS settings");
-        $fieldset_rss->collapsed = true;
+        $rss = $modules->get("InputfieldFieldset");
+        $rss->label = __("RSS settings");
+        $rss->description = __("These are the settings applied when the module renders RSS feeds.");
+        $rss->icon = "rss";
+        $fields->add($rss);
 
         // RSS Content-Type header
         $field = $modules->get("InputfieldSelect");
         $field->name = "rss_content_type";
+        $field->label = __("RSS content type");
+        $field->description = __("The value of the content-type header that gets sent with an RSS feed.");
+        $field->icon = "code";
         $field->addOptions(self::$rss_content_types);
         $field->value = $data['rss_content_type'];
-        $fieldset_rss->add($field);
-
-        $fields->add($fieldset_rss);
+        $rss->add($field);
 
         return $fields;
     }
