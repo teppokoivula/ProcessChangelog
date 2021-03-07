@@ -39,7 +39,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      *
      * @return array
      */
-    static public function getDefaultData() {
+    public static function getDefaultData() {
         return [
             'operations' => [
                 "hid" => __("hid"),
@@ -60,6 +60,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'ignored_users' => [],
             'log_caller' => null,
             'data_max_age' => null,
+            'data_max_age_days' => null,
             'page_edit_changelog' => 1,
             'schema_version' => 1,
         ];
@@ -199,10 +200,19 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 '3 MONTH' => __('3 months'),
                 '6 MONTH' => __('6 months'),
                 '1 YEAR' => __('1 year'),
+                'num_days' => __('Specific number of days'),
             ]);
             $field->notes = __("Leave empty to disable automatic cleanup.");
             $field->value = $data[$field->name];
         }
+        $fields->add($field);
+
+        // alternative to predefined intervals: number of days to retain collected data
+        $field = $modules->get("InputfieldInteger");
+        $field->name = "data_max_age_days";
+        $field->label = __("Data max age in days");
+        $field->notes = __("If this field is left empty, data will be retained indefinitely.");
+        $field->showIf = "data_max_age=num_days";
         $fields->add($field);
         
         // should a Changelog section be added to the Settings tab of the page editor?
@@ -210,7 +220,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $field->name = "page_edit_changelog";
         $field->label = __("Add Changelog to the page editor");
         $field->description = __("Add a Changelog section to the Settings tab of the page editor?");
-        if (!$data['data_max_age']) {
+        if (!$data['data_max_age'] || $data['data_max_age'] === 'num_days' && !$data_max_age_days) {
             $field->notes = __("Please note that since you haven't specified a max age for your changelog data, disabling the Changelog section may be preferable. Otherwise large amounts of changelog data may result in slow load times for the page editor.");
         }
         $field->addOptions([
@@ -310,7 +320,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     /**
      * Delete data older than defined interval
      *
-     * @param string|HookEvent|null $interval Interval, defaults to data_max_age setting
+     * @param null|string|int|HookEvent $interval Interval, defaults to data_max_age setting
      */
     public function cleanup($interval = null) {
 
@@ -319,13 +329,18 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             $interval = $this->data_max_age;
         }
 
+        // in case interval is "num_days", get value from the data_max_age_days setting instead
+        if ($interval === 'num_days') {
+            $interval = $this->data_max_age_days ? (int) $this->data_max_age_days : null;
+        }
+
         // bail out early if interval is still null
         if ($interval === null) {
             return;
         }
 
         // delete old data from database
-        $interval = $this->database->escapeStr($interval);
+        $interval = is_int($interval) ? $interval . ' DAY' : $this->database->escapeStr($interval);
         $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE timestamp < DATE_SUB(NOW(), INTERVAL $interval)";
         try {
             $this->database->exec($sql);
