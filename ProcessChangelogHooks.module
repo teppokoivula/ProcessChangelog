@@ -98,7 +98,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * @param array $data
      * @return InputfieldWrapper
      */
-    static public function getModuleConfigInputfields(array $data) {
+    public function getModuleConfigInputfields(array $data) {
 
         // this is a container for fields, basically like a fieldset
         $fields = new InputfieldWrapper();
@@ -109,6 +109,11 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         // merge default config settings (custom values overwrite defaults)
         $defaults = self::getDefaultData();
         $data = array_merge($defaults, $data);
+
+        // check for schema update
+        if ($data['schema_version'] < self::SCHEMA_VERSION) {
+            $this->message($this->getDatabaseSchemaUpdateNotice(), Notice::allowMarkup);
+        }
 
         // which operations should be tracked?
         $field = $modules->get("InputfieldCheckboxes");
@@ -269,13 +274,17 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
     /**
      * Adds a Changelog section to the Settings tab in the page editor
+     *
+     * @param HookEvent $event
      */
     public function hookPageEdit(HookEvent $event) {
         $form = $event->return;
         $process = $event->object;
         $editPage = $process->getPage();
         try {
-            $stmt = $this->database->prepare("SELECT COUNT(*), MIN(timestamp) FROM " . self::TABLE_NAME . " WHERE pages_id=:id");
+            // we're using a subquery and sorting by id in case there's *a lot* of data, in which case MIN(timestamp)
+            // without an index on the timestamp col (which we don't have, at least for now) could get extremely slow
+            $stmt = $this->database->prepare("SELECT COUNT(*), (SELECT timestamp FROM " . self::TABLE_NAME . " WHERE pages_id=:id ORDER BY id ASC LIMIT 1) FROM " . self::TABLE_NAME . " WHERE pages_id=:id");
             $stmt->bindValue(':id', $editPage->id, \PDO::PARAM_INT); 
             $stmt->execute();
             list($num_edits, $timestamp) = $stmt->fetch(\PDO::FETCH_NUM);
@@ -301,14 +310,21 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     /**
      * Delete data older than defined interval
      *
-     * @param string|HookEvent $interval Interval, defaults to data_max_age setting
+     * @param string|HookEvent|null $interval Interval, defaults to data_max_age setting
      */
     public function cleanup($interval = null) {
 
-        if ($interval instanceof HookEvent) $interval = $this->data_max_age;
-        if (is_null($interval) && is_null($this->data_max_age)) return;
-        else if (is_null($interval)) $interval = $this->data_max_age;
+        // called via LazyCron or null value provided for interval, get data_max_age from module config
+        if ($interval instanceof HookEvent || $interval === null) {
+            $interval = $this->data_max_age;
+        }
 
+        // bail out early if interval is still null
+        if ($interval === null) {
+            return;
+        }
+
+        // delete old data from database
         $interval = $this->database->escapeStr($interval);
         $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE timestamp < DATE_SUB(NOW(), INTERVAL $interval)";
         try {
@@ -596,18 +612,23 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * @param bool $force Force schema update, ignoring any checks.
      * 
      * @throws WireException if database schema version isn't recognized
-     * @throws WireException if updating schema to specific version fails
      */
     public function updateDatabaseSchema($force = false) {
-        $can_update = true;
-        while ($can_update && $this->schema_version < self::SCHEMA_VERSION) {
-            ++$this->schema_version;
+        while ($this->schema_version < self::SCHEMA_VERSION) {
+
+            // by default an update can be performed by any user behind the scenes
+            $can_update = true;
+
+            // first we need to figure out which update we're going to trigger, and whether it's one that can be
+            // triggered in the backgroudn without superuser intervention
             switch ($this->schema_version) {
-                case 2:
+                case 1:
+                    // update #1: add templates_id column
                     $sql = "ALTER TABLE `" . self::TABLE_NAME . "` ADD `templates_id` INT(10) UNSIGNED NOT NULL DEFAULT 0 AFTER `pages_id`";
                     break;
-                case 3:
-                    $can_update = $force || ($this->user->isSuperuser() && $this->input->get->update_changelog_database_schema == 3);
+                case 2:
+                    // update #2: add indexes for templates_id, username, and pages_id
+                    $can_update = $force || ($this->user->isSuperuser() && $this->input->get->update_changelog_database_schema == 2);
                     if ($can_update) {
                         set_time_limit(600);
                         $sql = "ALTER TABLE `" . self::TABLE_NAME . "` ADD INDEX `templates_id` (`templates_id`), ADD INDEX `username` (`username`), ADD INDEX `pages_id` (`pages_id`)";
@@ -616,37 +637,89 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 default:
                     throw new WireException("Unrecognized database schema version: {$this->schema_version}");
             }
-            if ($can_update && $this->database->exec($sql) !== false) {
-                $configData = $this->modules->getModuleConfigData($this);
-                $configData['schema_version'] = $this->schema_version;
-                $this->modules->saveModuleConfigData($this, $configData);
-                if ($this->user->isSuperuser()) {
-                    $this->message(sprintf(
-                        $this->_('Changelog database schema updated (#%d).'),
-                        $this->schema_version
-                    ));
+
+            // this update needs to be triggered manually by superuser, just in case; display a notification and
+            // call to action button if current user is a superuser, otherwise just keep on keeping on
+            if (!$can_update) {
+                if (!$this->user->isLoggedin()) {
+                    $this->addHookAfter('ProcessLogin::loginSuccess', function(HookEvent $event) {
+                        if ($event->user->isSuperuser()) {
+                            $event->message($this->getDatabaseSchemaUpdateNotice(), Notice::allowMarkup);
+                        }
+                    });
                 }
-            } else if (!$can_update) {
-                // this update needs to be triggered manually by superuser, just in case; fall back to previous schema
-                // version and display a notification for superusers
-                --$this->schema_version;
-                if ($this->user->isSuperuser()) {
-                    $this->message(sprintf(
-                        $this->_('Changelog has pending schema update (#%d). This update may take a while to complete. If an error occurs, please see README.md for instructions. %s.'),
-                        $this->schema_version + 1,
-                        sprintf(
-                            '<a href="%s">%s</a>',
-                            $this->config->urls->admin . 'module/edit/?name=ProcessChangelogHooks&update_changelog_database_schema=3',
-                            $this->_('Update schema now'),
-                        )
-                    ), Notice::allowMarkup);
+                return;
+            }
+
+            // we're ready to execute this update
+            $schema_updated = false;
+            try {
+                $updated_rows = $this->database->exec($sql);
+                $schema_updated = $updated_rows !== false;
+            } catch (\PDOException $e) {
+                if (isset($e->errorInfo[1]) && $e->errorInfo[1] === 1061) {
+                    // "duplicate key name", meaning that this update was likely already executed; do nothing, either
+                    // the module was installed but table already existed or module config data was somehow corrupted
+                    $schema_updated = true;
+                } else {
+                    // another type of error; log, show notice (if current user is superuser) and continue
+                    $message = sprintf(
+                        'Error updating schema: %s (%s)',
+                        $e->getMessage(),
+                        $e->getCode()
+                    );
+                    $this->log->save('process-changelog', $message);
+                    if ($this->user->isSuperuser()) {
+                        $this->error($message);
+                    }
+                    return;
                 }
-            } else {
-                throw new WireException("Couldn't update database schema to version {$this->schema_version}");
+            }
+
+            // update failed; log, show notice (if current user is superuser) and continue
+            if (!$schema_updated) {
+                $message = sprintf(
+                    $this->_("Running database schema update %d failed"),
+                    $this->schema_version
+                );
+                $this->log->save('process-changelog', $message);
+                if ($this->user->isSuperuser()) {
+                    $this->message($message);
+                }
+                return;
+            }
+
+            // all's well that ends well
+            ++$this->schema_version;
+            $configData = $this->modules->getModuleConfigData($this);
+            $configData['schema_version'] = $this->schema_version;
+            $this->modules->saveModuleConfigData($this, $configData);
+            if ($this->user->isSuperuser()) {
+                $this->message(sprintf(
+                    $this->_('Changelog database schema updated (#%d).'),
+                    $this->schema_version,
+                ));
             }
         }
     }
-    
+
+    /**
+     * Get database schema update notice
+     *
+     * @return string
+     */
+    protected function getDatabaseSchemaUpdateNotice() {
+        return sprintf(
+            $this->_('ProcessChangelog has pending database schema update (#%d). This update may take a while to complete. If an error occurs, module README file contains additional instructions. %s.'),
+            $this->schema_version,
+            sprintf(
+                '<a href="%s">%s</a>',
+                $this->config->urls->admin . 'module/edit/?name=ProcessChangelogHooks&update_changelog_database_schema=' . (int) $this->schema_version,
+                $this->_('Update database schema now'),
+            )
+        );
+    }
+
     /**
      * Called only when this module is installed
      *
