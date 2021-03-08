@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.7.0',
+            'version' => '1.8.0',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -39,7 +39,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      *
      * @return array
      */
-    static public function getDefaultData() {
+    public static function getDefaultData() {
         return [
             'operations' => [
                 "hid" => __("hid"),
@@ -60,6 +60,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'ignored_users' => [],
             'log_caller' => null,
             'data_max_age' => null,
+            'data_max_age_days' => null,
             'page_edit_changelog' => 1,
             'schema_version' => 1,
         ];
@@ -77,7 +78,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * 
      * @param int
      */
-    const SCHEMA_VERSION = 2;
+    const SCHEMA_VERSION = 3;
 
     /**
      * Populate the default config data
@@ -98,75 +99,42 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * @param array $data
      * @return InputfieldWrapper
      */
-    static public function getModuleConfigInputfields(array $data) {
+    public function getModuleConfigInputfields(array $data) {
 
-        // this is a container for fields, basically like a fieldset
+        // container for fields
         $fields = new InputfieldWrapper();
-
-        // reference to the modules API variable
-        $modules = wire('modules');
 
         // merge default config settings (custom values overwrite defaults)
         $defaults = self::getDefaultData();
         $data = array_merge($defaults, $data);
 
+        // check for a schema update
+        if ($data['schema_version'] < self::SCHEMA_VERSION) {
+            $this->message($this->getDatabaseSchemaUpdateNotice(), Notice::allowMarkup);
+        }
+
+        // logging settings
+        $logging = $this->modules->get("InputfieldFieldset");
+        $logging->name = "logging";
+        $logging->label = __("Logging");
+        $logging->description = __("These settings define which actions and what kind of data gets logged.");
+        $logging->icon = "book";
+        $fields->add($logging);
+
         // which operations should be tracked?
-        $field = $modules->get("InputfieldCheckboxes");
+        $field = $this->modules->get("InputfieldCheckboxes");
         $field->name = "operations";
         $field->label = __("Operations");
         $field->addOptions($defaults['operations']);
+        $field->optionColumns = 3;
         $field->value = $data['operations'] === $defaults['operations'] ? array_keys($defaults['operations']) : $data['operations'];
         $field->description = __("You can choose which operations to keep track of here.");
         $field->notes = __("Note that unchecking operations later won't remove rows containing them from database. Instead new rows of those types will no longer be created and existing ones won't be visible anymore.");
-        $fields->add($field);
-        
-        // templates that should be ignored when logging changes
-        $field = $modules->get("InputfieldAsmSelect");
-        $field->name = "ignored_templates";
-        $field->label = __("Ignored templates");
-        $field->description = __("Ignore these templates completely when logging changes.");
-        $field->notes = __("Note that adding a template here will not remove any data stored for it.");
-        $field->addOptions(wire('templates')->getAll()->getArray());
-        $field->value = $data[$field->name];
-        $fields->add($field);
-
-        // fields that should be ignored when logging changes
-        $field = $modules->get("InputfieldAsmSelect");
-        $field->name = "ignored_fields";
-        $field->label = __("Ignored fields");
-        $field->description = __("Ignore these fields completely when logging changes.");
-        $field->notes = __("Note that adding a field here will **not** remove any data stored for it.");
-        $field->addOptions(wire('fields')->getAll()->getArray());
-        $field->value = $data[$field->name];
-        $fields->add($field);
-        
-        // roles that should be ignored when logging changes
-        $field = $modules->get("InputfieldAsmSelect");
-        $field->name = "ignored_roles";
-        $field->label = __("Ignored roles");
-        $field->description = __("Ignore these roles completely when logging changes.");
-        $field->notes = __("Note that adding a role here will **not** remove any data stored for it. Also note that the guest role has a special meaning: in the case of other roles the user is ignored if she has any of the ignored rules, but for guest role the user is only ignored if she has the guest role *and no other roles*.");
-        foreach (wire('pages')->find('template=role, check_access=0')->explode(['id', 'name']) as $role) {
-            $field->addOption($role['id'], $role['name']);
-        }
-        $field->value = $data[$field->name];
-        $fields->add($field);
-
-        // users that should be ignored when logging changes
-        $field = $modules->get("InputfieldAsmSelect");
-        $field->name = "ignored_users";
-        $field->label = __("Ignored users");
-        $field->description = __("Ignore these users completely when logging changes.");
-        $field->notes = __("Note that adding a user here will **not** remove any data stored for it.");
-        $user_templates = wire('config')->userTemplateIds ? implode('|', wire('config')->userTemplateIDs) : 'user';
-        foreach (wire('pages')->find('template=' . $user_templates . ', check_access=0')->explode(['id', 'name']) as $role) {
-            $field->addOption($role['id'], $role['name']);
-        }
-        $field->value = $data[$field->name];
-        $fields->add($field);
+        $field->icon = "filter";
+        $logging->add($field);
 
         // should caller (script or URL that triggered this action) be logged?
-        $field = $modules->get("InputfieldSelect");
+        $field = $this->modules->get("InputfieldSelect");
         $field->name = "log_caller";
         $field->label = __("Caller logging");
         $field->description = __("Enable logging of path/URL for script that triggered action?");
@@ -176,16 +144,84 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'all' => __('For all callers (CLI, external applications and ProcessWire itself)'),
         ]);
         $field->notes = __("This can be useful when trying to find out why certain change was triggered. On the other hand it adds to the size of your database table and slightly slows script execution, which is why it's disabled by default.");
+        $field->icon = "phone";
         $field->value = $data[$field->name];
-        $fields->add($field);
+        $logging->add($field);
+
+        // ignore settings
+        $ignore_settings = $this->modules->get("InputfieldFieldset");
+        $ignore_settings->name = "ignore_settings";
+        $ignore_settings->label = $this->_("Ignore settings");
+        $ignore_settings->description = $this->_("These options control which templates, fields, roles, and users *don't* get logged. Keep in mind, though, that making changes here will not erase any existing data.");
+        $ignore_settings->icon = "ban";
+        $fields->add($ignore_settings);
+        
+        // templates that should be ignored when logging changes
+        $field = $this->modules->get("InputfieldAsmSelect");
+        $field->name = "ignored_templates";
+        $field->label = __("Ignored templates");
+        $field->description = __("Ignore these templates when logging changes.");
+        $field->icon = "cubes";
+        $field->columnWidth = 50;
+        $field->addOptions(wire('templates')->getAll()->getArray());
+        $field->value = $data[$field->name];
+        $ignore_settings->add($field);
+
+        // fields that should be ignored when logging changes
+        $field = $this->modules->get("InputfieldAsmSelect");
+        $field->name = "ignored_fields";
+        $field->label = __("Ignored fields");
+        $field->description = __("Ignore these fields when logging changes.");
+        $field->icon = "cube";
+        $field->columnWidth = 50;
+        $field->addOptions(wire('fields')->getAll()->getArray());
+        $field->value = $data[$field->name];
+        $ignore_settings->add($field);
+        
+        // roles that should be ignored when logging changes
+        $field = $this->modules->get("InputfieldAsmSelect");
+        $field->name = "ignored_roles";
+        $field->label = __("Ignored roles");
+        $field->description = __("Ignore these roles when logging changes.");
+        $field->notes = __("Note that \"guest\" has a special meaning here: with other roles the user is ignored if they have any of the ignored roles, whereas guest users are only ignored if they have the guest role *and no other roles whatsoever*.");
+        $field->icon = "gears";
+        $field->columnWidth = 50;
+        foreach (wire('pages')->find('template=role, check_access=0')->explode(['id', 'name']) as $role) {
+            $field->addOption($role['id'], $role['name']);
+        }
+        $field->value = $data[$field->name];
+        $ignore_settings->add($field);
+
+        // users that should be ignored when logging changes
+        $field = $this->modules->get("InputfieldAsmSelect");
+        $field->name = "ignored_users";
+        $field->label = __("Ignored users");
+        $field->description = __("Ignore these users when logging changes.");
+        $field->icon = "users";
+        $field->columnWidth = 50;
+        $user_templates = wire('config')->userTemplateIds ? implode('|', wire('config')->userTemplateIDs) : 'user';
+        foreach (wire('pages')->find('template=' . $user_templates . ', check_access=0')->explode(['id', 'name']) as $role) {
+            $field->addOption($role['id'], $role['name']);
+        }
+        $field->value = $data[$field->name];
+        $ignore_settings->add($field);
+
+        // data retention settings
+        $data_retention = $this->modules->get("InputfieldFieldset");
+        $data_retention->name = "data_retention";
+        $data_retention->label = __("Data retention");
+        $data_retention->description = __("These settings define how long collected data should be retained for, as well as the circumstances under which it may be erased.");
+        $data_retention->icon = "database";
+        $fields->add($data_retention);
 
         // for how long should collected data be retained?
-        $field = $modules->get("InputfieldSelect");
+        $field = $this->modules->get("InputfieldSelect");
         $field->name = "data_max_age";
         $field->label = __("Data max age");
         $field->description = __("For how long should we retain collected data?");
         $field->notes = __("Automatic cleanup requires LazyCron module, which isn't currently installed.");
-        if ($modules->isInstalled("LazyCron")) {
+        $field->icon = "calendar";
+        if ($this->modules->isInstalled("LazyCron")) {
             $field->addOptions([
                 '1 WEEK' => __('1 week'),
                 '2 WEEK' => __('2 weeks'),
@@ -194,18 +230,37 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                 '3 MONTH' => __('3 months'),
                 '6 MONTH' => __('6 months'),
                 '1 YEAR' => __('1 year'),
+                'num_days' => __('Specific number of days'),
             ]);
             $field->notes = __("Leave empty to disable automatic cleanup.");
             $field->value = $data[$field->name];
         }
-        $fields->add($field);
-        
+        $data_retention->add($field);
+
+        // alternative to predefined intervals: number of days to retain collected data
+        $field = $this->modules->get("InputfieldInteger");
+        $field->name = "data_max_age_days";
+        $field->label = __("Data max age in days");
+        $field->description = __("This setting provides more granular control over the data retention period.");
+        $field->notes = __("If you leave this field empty, data will be retained indefinitely.");
+        $field->icon = "clock-o";
+        $field->showIf = "data_max_age=num_days";
+        $data_retention->add($field);
+
+        // additional settings
+        $additional_settings = $this->modules->get("InputfieldFieldset");
+        $additional_settings->name = "additional_settings";
+        $additional_settings->label = __("Additional settings");
+        $additional_settings->description = __("Miscellaneous settings for adjusting the behaviour of the module.");
+        $additional_settings->icon = "sliders";
+        $fields->add($additional_settings);
+
         // should a Changelog section be added to the Settings tab of the page editor?
-        $field = $modules->get("InputfieldSelect");
+        $field = $this->modules->get("InputfieldSelect");
         $field->name = "page_edit_changelog";
         $field->label = __("Add Changelog to the page editor");
         $field->description = __("Add a Changelog section to the Settings tab of the page editor?");
-        if (!$data['data_max_age']) {
+        if (!$data['data_max_age'] || $data['data_max_age'] === 'num_days' && !$data_max_age_days) {
             $field->notes = __("Please note that since you haven't specified a max age for your changelog data, disabling the Changelog section may be preferable. Otherwise large amounts of changelog data may result in slow load times for the page editor.");
         }
         $field->addOptions([
@@ -215,6 +270,16 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             3 => __("For superusers only"),
         ]);
         $field->value = $data[$field->name];
+        $additional_settings->add($field);
+
+        // database schema version
+        $field = $this->modules->get("InputfieldInteger");
+        $field->name = "schema_version";
+        $field->label = __("Schema version");
+        $field->icon = "warning";
+        $field->value = $data['schema_version'];
+        $field->collapsed = Inputfield::collapsedYes;
+        $field->notes = __("Under normal circumstances you should never have to manually modify this field. It can, however, be used to skip over a specific schema update, or let Proces Changelog Hooks know that you've applied the update manually via the database.");
         $fields->add($field);
 
         return $fields;
@@ -259,13 +324,17 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
     /**
      * Adds a Changelog section to the Settings tab in the page editor
+     *
+     * @param HookEvent $event
      */
     public function hookPageEdit(HookEvent $event) {
         $form = $event->return;
         $process = $event->object;
         $editPage = $process->getPage();
         try {
-            $stmt = $this->database->prepare("SELECT COUNT(*), MIN(timestamp) FROM " . self::TABLE_NAME . " WHERE pages_id=:id");
+            // we're using a subquery and sorting by id in case there's *a lot* of data, in which case MIN(timestamp)
+            // without an index on the timestamp col (which we don't have, at least for now) could get extremely slow
+            $stmt = $this->database->prepare("SELECT COUNT(*), (SELECT timestamp FROM " . self::TABLE_NAME . " WHERE pages_id=:id ORDER BY id ASC LIMIT 1) FROM " . self::TABLE_NAME . " WHERE pages_id=:id");
             $stmt->bindValue(':id', $editPage->id, \PDO::PARAM_INT); 
             $stmt->execute();
             list($num_edits, $timestamp) = $stmt->fetch(\PDO::FETCH_NUM);
@@ -291,15 +360,27 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     /**
      * Delete data older than defined interval
      *
-     * @param string|HookEvent $interval Interval, defaults to data_max_age setting
+     * @param null|string|int|HookEvent $interval Interval, defaults to data_max_age setting
      */
     public function cleanup($interval = null) {
 
-        if ($interval instanceof HookEvent) $interval = $this->data_max_age;
-        if (is_null($interval) && is_null($this->data_max_age)) return;
-        else if (is_null($interval)) $interval = $this->data_max_age;
+        // called via LazyCron or null value provided for interval, get data_max_age from module config
+        if ($interval instanceof HookEvent || $interval === null) {
+            $interval = $this->data_max_age;
+        }
 
-        $interval = $this->database->escapeStr($interval);
+        // in case interval is "num_days", get value from the data_max_age_days setting instead
+        if ($interval === 'num_days') {
+            $interval = $this->data_max_age_days ? (int) $this->data_max_age_days : null;
+        }
+
+        // bail out early if interval is still null
+        if ($interval === null) {
+            return;
+        }
+
+        // delete old data from database
+        $interval = is_int($interval) ? $interval . ' DAY' : $this->database->escapeStr($interval);
         $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE timestamp < DATE_SUB(NOW(), INTERVAL $interval)";
         try {
             $this->database->exec($sql);
@@ -582,30 +663,118 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      *
      * This method applies incremental updates until latest schema version is
      * reached, while also keeping schema_version config setting up to date.
+     *
+     * @param bool $force Force schema update, ignoring any checks.
      * 
      * @throws WireException if database schema version isn't recognized
-     * @throws WireException if updating schema to specific version fails
      */
-    private function updateDatabaseSchema() {
+    public function updateDatabaseSchema($force = false) {
         while ($this->schema_version < self::SCHEMA_VERSION) {
-            ++$this->schema_version;
+
+            // by default an update can be performed by any user behind the scenes
+            $can_update = true;
+
+            // first we need to figure out which update we're going to trigger, and whether it's one that can be
+            // triggered in the backgroudn without superuser intervention
             switch ($this->schema_version) {
+                case 1:
+                    // update #1: add templates_id column
+                    $sql = "ALTER TABLE `" . self::TABLE_NAME . "` ADD `templates_id` INT(10) UNSIGNED NOT NULL DEFAULT 0 AFTER `pages_id`";
+                    break;
                 case 2:
-                    $sql = "ALTER TABLE " . self::TABLE_NAME . " ADD templates_id INT(10) UNSIGNED NOT NULL DEFAULT 0 AFTER pages_id";
+                    // update #2: add indexes for templates_id, username, and pages_id
+                    $can_update = $force || ($this->user->isSuperuser() && $this->input->get->update_changelog_database_schema == 2);
+                    if ($can_update) {
+                        set_time_limit(600);
+                        $sql = "ALTER TABLE `" . self::TABLE_NAME . "` ADD INDEX `templates_id` (`templates_id`), ADD INDEX `username` (`username`), ADD INDEX `pages_id` (`pages_id`)";
+                    }
                     break;
                 default:
                     throw new WireException("Unrecognized database schema version: {$this->schema_version}");
             }
-            if ($sql && $this->database->exec($sql) !== false) {
-                $configData = $this->modules->getModuleConfigData($this);
-                $configData['schema_version'] = $this->schema_version;
-                $this->modules->saveModuleConfigData($this, $configData);
-            } else {
-                throw new WireException("Couldn't update database schema to version {$this->schema_version}");
+
+            // this update needs to be triggered manually by superuser, just in case; display a notification and
+            // call to action button if current user is a superuser, otherwise just keep on keeping on
+            if (!$can_update) {
+                if (!$this->user->isLoggedin()) {
+                    $this->addHookAfter('ProcessLogin::loginSuccess', function(HookEvent $event) {
+                        if ($event->user->isSuperuser()) {
+                            $event->message($this->getDatabaseSchemaUpdateNotice(), Notice::allowMarkup);
+                        }
+                    });
+                }
+                return;
+            }
+
+            // we're ready to execute this update
+            $schema_updated = false;
+            try {
+                $updated_rows = $this->database->exec($sql);
+                $schema_updated = $updated_rows !== false;
+            } catch (\PDOException $e) {
+                if (isset($e->errorInfo[1]) && $e->errorInfo[1] === 1061) {
+                    // "duplicate key name", meaning that this update was likely already executed; do nothing, either
+                    // the module was installed but table already existed or module config data was somehow corrupted
+                    $schema_updated = true;
+                } else {
+                    // another type of error; log, show notice (if current user is superuser) and continue
+                    $message = sprintf(
+                        'Error updating schema: %s (%s)',
+                        $e->getMessage(),
+                        $e->getCode()
+                    );
+                    $this->log->save('process-changelog', $message);
+                    if ($this->user->isSuperuser()) {
+                        $this->error($message);
+                    }
+                    return;
+                }
+            }
+
+            // update failed; log, show notice (if current user is superuser) and continue
+            if (!$schema_updated) {
+                $message = sprintf(
+                    $this->_("Running database schema update %d failed"),
+                    $this->schema_version
+                );
+                $this->log->save('process-changelog', $message);
+                if ($this->user->isSuperuser()) {
+                    $this->message($message);
+                }
+                return;
+            }
+
+            // all's well that ends well
+            ++$this->schema_version;
+            $configData = $this->modules->getModuleConfigData($this);
+            $configData['schema_version'] = $this->schema_version;
+            $this->modules->saveModuleConfigData($this, $configData);
+            if ($this->user->isSuperuser()) {
+                $this->message(sprintf(
+                    $this->_('Changelog database schema updated (#%d).'),
+                    $this->schema_version,
+                ));
             }
         }
     }
-    
+
+    /**
+     * Get database schema update notice
+     *
+     * @return string
+     */
+    protected function getDatabaseSchemaUpdateNotice() {
+        return sprintf(
+            $this->_('ProcessChangelog has pending database schema update (#%d). This update may take a while to complete. If an error occurs, module README file contains additional instructions. %s.'),
+            $this->schema_version,
+            sprintf(
+                '<a href="%s">%s</a>',
+                $this->config->urls->admin . 'module/edit/?name=ProcessChangelogHooks&update_changelog_database_schema=' . (int) $this->schema_version,
+                $this->_('Update database schema now'),
+            )
+        );
+    }
+
     /**
      * Called only when this module is installed
      *
@@ -629,7 +798,10 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $this->database->exec($sql);
 
         // tell the user that we've created new database table
-        $this->message("Created Table: " . self::TABLE_NAME); 
+        $this->message("Created Table: " . self::TABLE_NAME);
+
+        // update database schema, overriding any checks
+        $this->updateDatabaseSchema(true);
     }
 
     /**
@@ -638,7 +810,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * Drops database table created during installation.
      */
     public function ___uninstall() {
-        $this->message("Deleting Table: " . self::TABLE_NAME);
+        $this->message("Removing database table: " . self::TABLE_NAME);
         $this->database->exec("DROP TABLE IF EXISTS " . self::TABLE_NAME);
     }
     

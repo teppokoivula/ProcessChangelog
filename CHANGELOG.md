@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2021-03-08
+
+### Added
+- Schema update #2, which adds new indexes to the existing database table to better accommodate cases where the table contains large amounts of data.
+- Support for schema updates requiring manual triggering by superuser. Useful for cases where the update may take a while to run, such as update #2.
+- Optimizations for the page editor changelog section for cases where there are a lot of rows stored for a single page.
+- Support for retaining data for specific number of days instead of using one of the predefined intervals.
+
 ## [1.10.0] - 2021-01-15
 
 ### Changed
