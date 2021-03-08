@@ -72,7 +72,7 @@ this would be creating a simple bootstrap script and running it on the server:
 <?php
 
 // place this script in your site's root directory, at the same level as the
-// ProcessWire index.php file
+// ProcessWire index.php file, and execute via the php command.
 
 require __DIR__ . '/index.php';
 $changelog = $wire->modules->get('ProcessChangelogHooks');
