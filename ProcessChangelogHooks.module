@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.8.0',
+            'version' => '1.9.0',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -78,7 +78,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
      * 
      * @param int
      */
-    const SCHEMA_VERSION = 3;
+    const SCHEMA_VERSION = 4;
 
     /**
      * Populate the default config data
@@ -674,19 +674,37 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             // by default an update can be performed by any user behind the scenes
             $can_update = true;
 
+            // increment; defaults to 1, but in some cases we may be able to skip over a specific schema update
+            $increment = 1;
+
             // first we need to figure out which update we're going to trigger, and whether it's one that can be
             // triggered in the backgroudn without superuser intervention
             switch ($this->schema_version) {
                 case 1:
                     // update #1: add templates_id column
-                    $sql = "ALTER TABLE `" . self::TABLE_NAME . "` ADD `templates_id` INT(10) UNSIGNED NOT NULL DEFAULT 0 AFTER `pages_id`";
+                    $sql = [
+                        "ALTER TABLE `" . self::TABLE_NAME . "` ADD `templates_id` INT(10) UNSIGNED NOT NULL DEFAULT 0 AFTER `pages_id`",
+                    ];
                     break;
                 case 2:
-                    // update #2: add indexes for templates_id, username, and pages_id
+                    // update #2: add indexes for templates_id and username
                     $can_update = $force || ($this->user->isSuperuser() && $this->input->get->update_changelog_database_schema == 2);
                     if ($can_update) {
                         set_time_limit(600);
-                        $sql = "ALTER TABLE `" . self::TABLE_NAME . "` ADD INDEX `templates_id` (`templates_id`), ADD INDEX `username` (`username`), ADD INDEX `pages_id` (`pages_id`)";
+                        $sql = [
+                            "ALTER TABLE `" . self::TABLE_NAME . "` ADD INDEX `templates_id` (`templates_id`), ADD INDEX `username` (`username`)",
+                        ];
+                    }
+                    break;
+                case 3:
+                    // update #3: drop index for pages_id, add index for pages_id + id
+                    $can_update = $force || ($this->user->isSuperuser() && $this->input->get->update_changelog_database_schema == 3);
+                    if ($can_update) {
+                        set_time_limit(600);
+                        $sql = [
+                            "ALTER TABLE `" . self::TABLE_NAME . "` DROP INDEX `pages_id`",
+                            "ALTER TABLE `" . self::TABLE_NAME . "` ADD INDEX `pages_id__id` (`pages_id`, `id`)",
+                        ];
                     }
                     break;
                 default:
@@ -707,31 +725,14 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             }
 
             // we're ready to execute this update
-            $schema_updated = false;
-            try {
-                $updated_rows = $this->database->exec($sql);
-                $schema_updated = $updated_rows !== false;
-            } catch (\PDOException $e) {
-                if (isset($e->errorInfo[1]) && $e->errorInfo[1] === 1061) {
-                    // "duplicate key name", meaning that this update was likely already executed; do nothing, either
-                    // the module was installed but table already existed or module config data was somehow corrupted
-                    $schema_updated = true;
-                } else {
-                    // another type of error; log, show notice (if current user is superuser) and continue
-                    $message = sprintf(
-                        'Error updating schema: %s (%s)',
-                        $e->getMessage(),
-                        $e->getCode()
-                    );
-                    $this->log->save('process-changelog', $message);
-                    if ($this->user->isSuperuser()) {
-                        $this->error($message);
-                    }
-                    return;
+            foreach ($sql as $sql_query) {
+                $schema_updated = $this->executeDatabaseSchemaUpdate($sql_query);
+                if (!$schema_updated) {
+                    break;
                 }
             }
 
-            // update failed; log, show notice (if current user is superuser) and continue
+            // if update fails: log, show notice (if current user is superuser) and continue
             if (!$schema_updated) {
                 $message = sprintf(
                     $this->_("Running database schema update %d failed"),
@@ -745,7 +746,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             }
 
             // all's well that ends well
-            ++$this->schema_version;
+            $this->schema_version += $increment;
             $configData = $this->modules->getModuleConfigData($this);
             $configData['schema_version'] = $this->schema_version;
             $this->modules->saveModuleConfigData($this, $configData);
@@ -755,6 +756,40 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
                     $this->schema_version,
                 ));
             }
+        }
+    }
+
+    /**
+     * Execute database schema update
+     *
+     * @param string $sql
+     * @return bool
+     */
+    protected function executeDatabaseSchemaUpdate($sql): bool {
+        try {
+            $updated_rows = $this->database->exec($sql);
+            return $updated_rows !== false;
+        } catch (\PDOException $e) {
+            if (isset($e->errorInfo[1]) && $e->errorInfo[1] === 1061) {
+                // "duplicate key name", meaning that this update was likely already executed; do nothing, either
+                // the module was installed but table already existed or module config data was somehow corrupted
+                return true;
+            } else if (isset($e->errorInfo[1]) && $e->errorInfo[1] === 1091) {
+                // "can't drop index", meaning that this index was already dropped or alternatively never added;
+                // do nothing, since this error doesn't prevent us from applying next update
+                return true;
+            }
+            // another type of error; log, show notice (if current user is superuser) and return false
+            $message = sprintf(
+                'Error updating schema: %s (%s)',
+                $e->getMessage(),
+                $e->getCode()
+            );
+            $this->log->save('process-changelog', $message);
+            if ($this->user->isSuperuser()) {
+                $this->error($message);
+            }
+            return false;
         }
     }
 
