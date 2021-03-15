@@ -752,7 +752,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             $this->modules->saveModuleConfigData($this, $configData);
             if ($this->user->isSuperuser()) {
                 $this->message(sprintf(
-                    $this->_('Changelog database schema updated (#%d).'),
+                    $this->_('ProcessChangelog database schema updated (#%d).'),
                     $this->schema_version
                 ));
             }
