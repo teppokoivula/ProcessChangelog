@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Schema update #3, which removes earlier index for pages_id and instead adds a new index for pages_id + id to the process_changelog database table.
-- Various updates for the schema update process: ability to execute multiple SQL queries, better error handling, etc.
+- Various updates for the schema update process: ability to execute multiple SQL queries, improved fault tolerance, etc.
 
 ## [1.11.0] - 2021-03-08
 
