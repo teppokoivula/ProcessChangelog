@@ -752,8 +752,8 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             $this->modules->saveModuleConfigData($this, $configData);
             if ($this->user->isSuperuser()) {
                 $this->message(sprintf(
-                    $this->_('ProcessChangelog database schema updated (#%d).'),
-                    $this->schema_version
+                    $this->_('ProcessChangelog database schema update applied (#%d).'),
+                    $this->schema_version - 1
                 ));
             }
         }
@@ -770,13 +770,9 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             $updated_rows = $this->database->exec($sql);
             return $updated_rows !== false;
         } catch (\PDOException $e) {
-            if (isset($e->errorInfo[1]) && $e->errorInfo[1] === 1061) {
-                // "duplicate key name", meaning that this update was likely already executed; do nothing, either
-                // the module was installed but table already existed or module config data was somehow corrupted
-                return true;
-            } else if (isset($e->errorInfo[1]) && $e->errorInfo[1] === 1091) {
-                // "can't drop index", meaning that this index was already dropped or alternatively never added;
-                // do nothing, since this error doesn't prevent us from applying next update
+            if (isset($e->errorInfo[1]) && in_array($e->errorInfo[1], [1060, 1061, 1091])) {
+	        // 1060 (column already exists), 1061 (duplicate key name), and 1091 (can't drop index) are errors that
+		// can be safely ignored here; the most likely issue would be that this update has already been applied
                 return true;
             }
             // another type of error; log, show notice (if current user is superuser) and return false
