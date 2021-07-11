@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.1] - 2021-07-11
+
+### Added
+- Support for filtering results by edited field. This option is intended as a power user tool and intentionally omitted from the GUI due to performance issues with larger amounts of data.
+
 ## [1.12.0] - 2021-03-15
 
 ### Added
