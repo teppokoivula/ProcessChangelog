@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.2] - 2021-12-23
+
+### Changed
+- Removed ProcessWire Composer dependency.
+
 ## [1.12.1] - 2021-07-11
 
 ### Added
