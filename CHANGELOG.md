@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] - 2022-01-07
+
+### Added
+- New "prune data now" option to Process Changelog Hooks module config screen. This option triggers cleanup instantly when module config is saved, and gets then reset to default (unset) state.
+- New "data max rows" config setting for Process Changelog Hooks module. If defined, this will limit the number of data rows stored to specified value. Extra rows are removed during cleanup.
+
 ## [1.12.2] - 2021-12-23
 
 ### Changed
