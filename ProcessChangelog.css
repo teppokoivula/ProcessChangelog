@@ -1,5 +1,21 @@
 /* --- filters form --- */
 
+form#filters .filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    margin: 0 -.5rem;
+}
+
+form#filters .filter,
+form#filters .filter-label {
+    margin: .25rem .5rem;
+}
+
+form#filters .filter-spacer {
+    margin: .25rem 0;
+}
+
 form#filters select,
 form#filters .log-datepicker {
     -webkit-appearance: none;
@@ -16,44 +32,28 @@ form#filters select::-ms-expand {
     display: none;
 }
 
-form#filters select:last-child,
-form#filters .log-datepicker {
-    margin-right: 0;
-}
-
-form#filters div.filter.disabled {
+form#filters .filter.disabled {
     opacity: 0.5;
 }
 
-form#filters div.filter.disabled input {
+form#filters .filter.disabled input {
     cursor: default;
 }
 
-form#filters div.filter {
-    display: inline-block;
+form#filters .filter {
     border-radius: 2px;
     position: relative;
     border: 1px solid rgba(0,0,0,0.25);
     background: #fafafa;
     background: linear-gradient(to bottom, #fafafa, #fff);
-    margin: 0.2em 0;
 }
 
-form#filters div.filter:not(.no-icon) {
-    margin-right: 1%;
-}
-
-form#filters div.filter:not(.no-icon)::before {
+form#filters .filter:not(.no-icon)::before {
     font-family: FontAwesome;
     padding: 0.4em 0 0 0;
     position: absolute;
     content: '\f0d7';
     right: 0.75em;
-}
-
-form#filters span.text-label {
-    display: inline-block;
-    margin-right: 1%;
 }
 
 #ui-datepicker-div {

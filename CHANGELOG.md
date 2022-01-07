@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.0] - 2022-01-07
+
+### Added
+- New filter option "role" for filtering results by user role. This option is disabled by default, but can be enabled via Process Changelog module config.
+
 ## [1.13.0] - 2022-01-07
 
 ### Added
