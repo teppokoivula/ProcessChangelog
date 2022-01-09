@@ -22,7 +22,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.14.1',
+            'version' => '1.14.2',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -608,7 +608,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                                 $joins[] = "LEFT JOIN field_roles field_roles_not ON " . self::TABLE_NAME . ".user_id = field_roles_not.pages_id AND field_roles_not.data != " . (int) $role->id;
                                 $where[] = "field_roles_not.pages_id IS NULL";
                             }
-                            $group_by[] = "" . self::TABLE_NAME . ".id";
+                            $group_by[] = self::TABLE_NAME . ".id";
                         } else if ($this->sanitizer->pageName($value) == $value) {
                             $role = $this->roles->get('name=' . $value);
                             if ($role->id) {
@@ -623,7 +623,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         // note: this option is intentionally left out of the GUI in part due to bad performance with
                         // larger amounts of data
                         $value = preg_quote($value);
-                        $where[] = "" . self::TABLE_NAME . ".data REGEXP '\"Fields edited\"\:\"(?:.*? |){$value}(?:,|\")'";
+                        $where[] = self::TABLE_NAME . ".data REGEXP '\"Fields edited\"\:\"(?:.*? |){$value}(?:,|\")'";
                         break;
                     case "flags":
                         $join = "LEFT OUTER JOIN pages ON pages.id = " . self::TABLE_NAME . ".pages_id";
@@ -644,7 +644,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                             break;
                         }
                     default:
-                        $where[] = "" . self::TABLE_NAME . ".{$key} {$operator} " . (substr($key, -3) === '_id' ? (int) $value : "'{$value}'");
+                        $where[] = self::TABLE_NAME . ".{$key} {$operator} " . (substr($key, -3) === '_id' ? (int) $value : "'{$value}'");
                 }
             }
         }
