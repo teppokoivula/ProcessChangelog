@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.1] - 2022-01-09
+
+### Changed
+- Improvements to PHP 8 compatibility.
+- Various smaller updates and general code cleanup.
+
+### Fixed
+- RSS rendering issues when content included encoded characters.
+
 ## [1.14.0] - 2022-01-07
 
 ### Added
