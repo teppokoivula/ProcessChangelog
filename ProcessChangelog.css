@@ -321,15 +321,20 @@ table.log tr a.action:hover {
     margin-left: 0.5em;
 }
 
+#feeds {
+    padding-left: 0;
+}
+
 #feeds li {
     display: inline-block;
     margin-right: 1em;
 }
 
 #feeds li:not(:last-child)::after {
-    content: '|';
-    margin-left: 1em;
-    opacity: 0.25;
+    content: '';
+    border-right: .0625rem solid currentColor;
+    margin-left: 1rem;
+    opacity: .25;
 }
 
 #feeds li:last-child {

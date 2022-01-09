@@ -2,21 +2,28 @@ Process Changelog Module
 ========================
 
 Changelog module for ProcessWire CMS/CMF.
-Copyright (c) 2013-2021 Teppo Koivula
+Copyright (c) 2013-2022 Teppo Koivula
 
 This module keeps track of changes (edits, additions, removals etc.) on your ProcessWire site. It is not intended as a version control solution: for that purpose there are other modules. The goal of this module is to provide admin users with a quick overview of sitewide changes.
 
 ## Requirements
 
-The master branch of this module requires ProcessWire 3.x. If you're running an earlier version of ProcessWire you probably should consider updating it, but if that's not an option, please check out the legacy branch instead: https://github.com/teppokoivula/ProcessChangelog/tree/legacy.
+- ProcessWire 3.x (at least last two master versions will be officially supported)
+- PHP 7.1+
 
-Automatic cleanup (which is recommended) requires that you install the LazyCron module. While said module is bundled with the core package, it is not installed by default. Without automatic cleanup your database can eventually become slow as more and more changelog data gets stored in it.
+Automatic cleanup (highly recommended) requires that you install the LazyCron module. While LazyCron is bundled with the core package, it is not installed by default. Without automatic cleanup your database can eventually become slow as more and more changelog data is accumulated.
 
 ## Installing
 
 This module is installed just like any other ProcessWire module: copy or clone the directory containing this module to your /site/modules/ directory, log in, go to Admin > Modules, click "Check for new modules", and install "Changelog".
 
-Process Changelog Hooks will be automatically installed with the main module, Process Changelog. Installing Process Changelog RSS is completely optional: if installed, it provides you with a publicly viewable RSS feed of the changes to your site. More details under heading "Changelog RSS feed".
+Alternatively you can get module files via Composer:
+
+```
+composer require teppokoivula/process-changelog
+```
+
+Process Changelog Hooks will be automatically installed with the main module, while installing Process Changelog RSS is completely optional: if installed, it provides you with a publicly viewable RSS feed of the changes to your site. More details under "Changelog RSS feed" heading.
 
 ## How to use
 
@@ -55,81 +62,7 @@ If you are unable to run the schema update this way, you may perform expected ch
 
 This module contains a bunch of settings you should be aware of. Settings can be defined via ProcessWire's native module configuration screen, and each of the bundled module's has it's own settings.
 
-### Process Changelog
-
-**Date Format**
-
-* Defines how dates are formatted on Changelog page. See the PHP date function reference for information on how to customize this setting: http://www.php.net/manual/en/function.date.php
-* Default: j.n.Y H:i
-
-**Row Limit**
-
-* Defines number of rows visible at once on Changelog page
-* Default: 25
-
-**Row Label**
-
-* Defines which field will be used as row label (page identifier) on Changelog page
-* Default: Page name
-
-**Visible filters**
-
-* Defines which filters are visible on the Changelog page
-* Default: operation, username, when, date_range
-
-**Values for hidden filters**
-
-* Defines values used for filters that are not currently visible
-* Default: operation=all, flags=any, when=whenever
-
-### Process Changelog Hooks
-
-**Operations**
-
-* Defines which operations to keep track of / which should be ignored.
-* Default: all available operations
-
-**Ignored templates**
-
-* Defines which (if any) templates should be completely ignored from the log.
-* Default: none
-
-**Ignored fields**
-
-* Defines which (if any) fields should be completely ignored from the log.
-* Default: none
-
-**Ignored roles**
-
-* Define which (if any) roles should be completely ignored from the log.
-* Default: none
-
-**Ignored users**
-
-* Define which (if any) users should be completely ignored from the log.
-* Default: none
-
-**Caller logging**
-
-* Defines whether path/URL for script that triggered action should be stored.
-* Default: disabled
-
-**Data max age**
-
-* Defines how long collected data is kept before being removed automatically. Please note that automatic cleanup requires the core LazyCron module to be installed.
-* Default: forever (no automatic cleanup)
-
-**Add Changelog to the page editor**
-
-* Defines whether a Changelog section should be added to the Settings tab of the page editor. Can be enabled for everyone, users with the Changelog permission, or superusers only. Note that this may affect the performance of page editor.
-* Default: add for everyone
-
-### Process Changelog RSS
-
-**Key**
-
-* Key required to view the public changelog RSS feed; if omitted, the feed won't be available. Please note that the key has to be at least 10 characters long.
-* Default: null (feed not available)
+*See Process Changelog, Process Changelog Hooks, and Process Changelog RSS module config screens for more details.*
 
 ## Icons
 

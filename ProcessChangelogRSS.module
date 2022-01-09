@@ -1,14 +1,13 @@
-<?php
+<?php namespace ProcessWire;
 
 /**
  * RSS feed for Process Changelog
  *
- * This module provides an optional RSS feed for the data collected by the
- * ProcessChangelogHooks. RSS feeds can be accessed via a pre-defined URL
- * and a key stored within the configuration settings of this module.
+ * This module provides an optional RSS feed for the data collected by Process Changelog. RSS feeds can be accessed via
+ * a pre-defined URL and a key stored within the configuration settings of this module.
  *
- * @copyright 2016 Teppo Koivula
- * @license http://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ * @copyright 2016-2022 Teppo Koivula
+ * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */ 
 class ProcessChangelogRSS extends WireData implements Module, ConfigurableModule {
     
@@ -18,19 +17,19 @@ class ProcessChangelogRSS extends WireData implements Module, ConfigurableModule
      * @return array
      */
     public static function getModuleInfo() {
-        return array(
+        return [
             'title' => __('Changelog RSS'),
             'summary' => __('Output an RSS feed from Process Changelog data'),
-            'href' => 'http://modules.processwire.com/modules/process-changelog/',
+            'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.0',
+            'version' => '1.0.1',
             'singular' => true,
             'autoload' => true,
             'icon' => 'rss',
             'requires' => 'ProcessChangelog',
-        ); 
+        ];
     }
-    
+
     /**
      * Base filename for the RSS feed URL
      * 
@@ -44,62 +43,75 @@ class ProcessChangelogRSS extends WireData implements Module, ConfigurableModule
      * @param array $data
      * @return InputfieldWrapper
      */
-    static public function getModuleConfigInputfields(array $data) {
+    public function getModuleConfigInputfields(array $data) {
 
         // container for fields
-        $fields = new InputfieldWrapper();
+        $fields = $this->wire(new InputfieldWrapper());
 
         // key
-        $field = wire("modules")->get("InputfieldText");
+        $field = $this->modules->get("InputfieldText");
         $field->name = "key";
         $field->label = __("Key");
         $field->description = __("Key required to view the public changelog RSS feed; if omitted, the feed won't be available. Please note that the key has to be at least 10 characters long.");
         $field->notes = __("RSS feed is currently unavailable. Fill in a key and save module settings to see the feed URL.");
-        if (isset($data[$field->name]) && $key = $data[$field->name]) {
-            $feed_url = "http" . (wire('config')->https ? "s" : "") . "://" . wire('config')->httpHost . wire('config')->urls->root . self::RSS_FILENAME . "?key=" . rawurlencode($key);
-            $field->notes = sprintf(__("URL of the RSS feed: %s"), $feed_url);
-            $field->value = $key;
+        if (!empty($data[$field->name])) {
+            $field->notes = sprintf(__("URL of the RSS feed: %s"), $this->getRSSFeedURL($data[$field->name]));
+            $field->value = $data[$field->name];
         }
         $field->attr('minlength', 10);
         $fields->add($field);
 
         // show feed link on the Changelog page?
-        $field = wire("modules")->get("InputfieldCheckbox");
+        $field = $this->modules->get("InputfieldCheckbox");
         $field->name = "show_feed_link";
         $field->label = __("Show feed link on the Changelog page");
         $field->description = __("Check this option if you want to provide a link to the publicly viewable RSS feed on the Changelog page. This option is disabled by default as you may want to limit the number of users with access to the feed.");
-        $field->checked = isset($data[$field->name]) && $data[$field->name];
+        $field->checked = !empty($data[$field->name]);
         $fields->add($field);
 
         return $fields;
-        
     }
 
     /**
-     * Initialization function
-     *
-     * This function attachs required hooks.
-     *
+     * Initialization function, where we set up required hooks
      */
     public function init() {
-        if (strlen($this->key)) {
-            $this->feed_url = "http" . ($this->config->https ? "s" : "") . "://" . $this->config->httpHost . $this->config->urls->root . self::RSS_FILENAME . "?key=" . rawurlencode($this->key);
-            if (strlen($this->input->get->key) && $this->input->get->key == $this->key) {
-                $root = $this->config->urls->root ?: '/';
-                $feed = $root . self::RSS_FILENAME;
-                if (isset($_SERVER['REQUEST_URI']) && mb_substr(strtok($_SERVER['REQUEST_URI'], "?"), -strlen($feed)) == $feed) {
-                    $this->addHookBefore("ProcessPageView::pageNotFound", $this, "renderRSS");
-                }
-            }
+
+        // make sure that a key is configured and that a valid key was provided for current request
+        if (!is_string($this->key) || !strlen($this->key) || !is_string($this->input->get->key) || $this->input->get->key !== $this->key) {
+            return;
+        }
+
+        // if this request is for the changelog RSS feed, add hook that renders the feed
+        $root = $this->config->urls->root ?: '/';
+        $feed = $root . self::RSS_FILENAME;
+        if (isset($_SERVER['REQUEST_URI']) && mb_substr(strtok($_SERVER['REQUEST_URI'], "?"), -strlen($feed)) === $feed) {
+            $this->addHookBefore("ProcessPageView::pageNotFound", $this, "renderRSS");
         }
     }
 
     /**
-     * Render RSS feed
+     * Get RSS feed URL
      *
+     * @param string|null $key
+     * @return string
+     */
+    public function getRSSFeedURL(?string $key = null): string {
+        if ($key === null && (!is_string($this->key) || !strlen($this->key))) {
+            return '';
+        }
+        return "http" . ($this->config->https ? "s" : "") . "://" . $this->config->httpHost . $this->config->urls->root . self::RSS_FILENAME . "?key=" . rawurlencode($key ?? $this->key);
+    }
+
+    /**
+     * Render RSS feed
      */
     protected function renderRSS() {
-        $this->modules->getModule('ProcessChangelog', array('noPermissionCheck' => true))->executeRSS();
+        /** @var ProcessChangelog */
+        $changelog = $this->modules->getModule('ProcessChangelog', [
+            'noPermissionCheck' => true,
+        ]);
+        $changelog->executeRSS();
     }
 
 }

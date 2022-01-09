@@ -6,7 +6,7 @@
  * This module keeps track of changes (edits, additions, removals etc.) on pages of your site. For detailed information
  * and installation instructions see README.md.
  *
- * @copyright 2013-2021 Teppo Koivula
+ * @copyright 2013-2022 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessChangelog extends Process implements ConfigurableModule {
@@ -22,7 +22,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.14.0',
+            'version' => '1.14.1',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -40,7 +40,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      *
      * @return array
      */
-    static public function getDefaultData() {
+    public static function getDefaultData() {
         return [
             'row_limit' => 25,
             'row_label' => 'name',
@@ -112,6 +112,13 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     const PAGE_NAME = 'changelog';
 
     /**
+     * Name of the database table used by this module
+     *
+     * @var string
+     */
+    const TABLE_NAME = 'process_changelog';
+
+    /**
      * Valid Content-Type headers for the RSS feed
      *
      * @var array
@@ -121,15 +128,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         1 => 'application/xml',
         2 => 'text/xml',
     ];
-
-    /**
-     * Name of the database table used by this module
-     *
-     * This is populated in __construct() based on the value from ProcessChangelogHooks module.
-     *
-     * @var string
-     */
-    protected $table_name;
 
     /**
      * Array of operations being logged
@@ -168,7 +166,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         if ($this->modules->isInstalled("ProcessChangelogHooks")) {
             $config = $this->modules->getModuleConfigData("ProcessChangelogHooks");
             $defaults = $this->modules->get("ProcessChangelogHooks")->getDefaultData();
-            $this->table_name = ProcessChangelogHooks::TABLE_NAME;
             $this->available_operations = $defaults['operations'];
             $this->operations = isset($config['operations']) ? array_combine($config['operations'], $config['operations']) : $defaults['operations'];
         }
@@ -342,20 +339,28 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * Initialization function called before any execute functions
      */
     public function init() {
+
         parent::init();
+
+        // if more than one of operation, template, and flags exist in visible filters, add "all operations on"
+        // to available options for the operation filter
         if (count(array_intersect(['operation', 'template', 'flags'], $this->visible_filters)) > 1) {
             $available_filters = $this->available_filters;
             $available_filters['operation']['options'] = array_merge(
-                [$this->_("All operations on")],
+                [
+                    $this->_("All operations on"),
+                ],
                 $this->operations
             );
             $this->available_filters = $available_filters;
         }
+
         // should date formatting occur?
         $defaults = self::getDefaultData();
         if ($this->date_format == $defaults['date_format']) {
             unset($this->date_format);
         }
+
         // take values for hidden filters into account
         $hidden_filters = array_diff(array_keys($this->available_filters), $this->visible_filters);
         foreach ($hidden_filters as $filter) {
@@ -431,21 +436,24 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $feeds = "<ul id='feeds'>";
         $feeds .= "<li><a href='./rss/' target='_blank'>" . $this->_('RSS') . "</a></li>";
         if ($this->modules->isInstalled('ProcessChangelogRSS')) {
+            /** @var ProcessChangelogRSS */
             $changelogRSS = $this->modules->get('ProcessChangelogRSS');
-            if ($changelogRSS->feed_url && $changelogRSS->show_feed_link) {
-                $feeds .= "<li><a href='{$changelogRSS->feed_url}' target='_blank'>" . $this->_('Public RSS') . "</a></li>";
+            if ($changelogRSS->show_feed_link) {
+                $feed_url = $changelogRSS->getRSSFeedURL();
+                if ($feed_url) {
+                    $feeds .= "<li><a href='{$feed_url}' target='_blank'>" . $this->_('Public RSS') . "</a></li>";
+                    unset($feed_url);
+                }
             }
         }
         $feeds .= "</ul>";
 
         // return admin data table markup and pager
         return $filters . $info . $table->render() . $pager . $feeds;
-
     }
 
     /**
      * Executed when a page with this Process assigned is accessed with /JSON/
-     *
      */
     public function ___executeJSON() {
 
@@ -459,12 +467,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // send header and output JSON
         header('Content-type: application/json');
         exit(json_encode($data));
-
     }
 
     /**
      * Executed when a page with this Process assigned is accessed with /RSS/
-     *
      */
     public function ___executeRSS() {
 
@@ -479,21 +485,29 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $channel->addChild('description', $this->_('An automatically generated changelog for this site.'));
 
         // fetch rows from database
-        $data = [];
         $query = $this->buildQuery();
         $stmt = $this->database->prepare($query['query']);
         $stmt->execute();
+        $link_base_url = 'http' . ($this->config->https ? 's' : '') . '://' . $this->config->httpHost . $this->config->urls->admin . 'page/edit/?id=';
+        $guid_base_url = null;
+        $process_page = $this->pages->get("template=admin, process=" . $this->modules->getModuleID($this) . ", name=" . self::PAGE_NAME);
+        if ($process_page->id) {
+            $guid_base_url = 'http' . ($this->config->https ? 's' : '') . '://' . $this->config->httpHost . $process_page->url . '?id=';
+        }
         while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
             $item = $channel->addChild('item');
             $item->addChild('title', $this->parseString($row));
-            if ($row['data']) {
+            if (!empty($row['data'])) {
                 $details = json_decode($row['data'], true);
-                $item->addChild('description', $this->renderDetails($row['operation'], $details));
+                $item->description = $this->sanitizer->unentities($this->renderDetails($row['operation'], $details));
             } else {
                 $item->addChild('description', $this->_("No data available."));
             }
-            $item->addChild('link', 'http' . ($this->config->https ? 's' : '') . '://' . $this->config->httpHost . $this->config->urls->admin . 'page/edit/?id=' . (int) $row['pages_id']);
-            $item->addChild('pubDate', date(DATE_RSS, strtotime($row['timestamp'])));
+            $item->addChild('link', $link_base_url . (int) $row['pages_id']);
+            if ($guid_base_url) {
+                $item->addChild('guid', $guid_base_url . (int) $row['id']);
+            }
+            $item->addChild('pubDate', date(\DATE_RSS, strtotime($row['timestamp'])));
         }
 
         // send header and output RSS
@@ -502,7 +516,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         };
         header('Content-type: ' . self::$rss_content_types[$this->rss_content_type] . '; charset=UTF-8');
         exit($rss->asXML());
-
     }
 
     /**
@@ -514,7 +527,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * @throws WireException if template data can't be found
      * @throws WireException if template flag is not recognized
      */
-    private function buildQuery(array $group_by = []) {
+    private function buildQuery(array $group_by = []): array {
 
         // $joins, $where and $group_by arrays are used to construct where clause, joins, and group by statement later.
         // $where contains rules like "key = '$value'" and group by contains field names, while $joins contains actual
@@ -576,12 +589,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         }
                         break;
                     case "template":
-                        $join = "LEFT OUTER JOIN pages ON pages.id = {$this->table_name}.pages_id";
+                        $join = "LEFT OUTER JOIN pages ON pages.id = " . self::TABLE_NAME . ".pages_id";
                         if (!in_array($join, $joins)) $joins[] = $join;
                         $template = $this->getCacheTemplate($value);
                         if ($template) {
                             $where[] = "(pages.templates_id {$operator} {$template['id']}"
-                                     . " OR {$this->table_name}.templates_id {$operator} {$template['id']})";
+                                     . " OR " . self::TABLE_NAME . ".templates_id {$operator} {$template['id']})";
                         } else {
                             throw new WireException(sprintf($this->_("Template not found: %s"), $this->sanitizer->pageName($value)));
                         }
@@ -590,16 +603,16 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         if ($value === "guest") {
                             $role = $this->roles->get('guest');
                             if ($operator === '!=') {
-                                $joins[] = "JOIN field_roles field_roles_not ON {$this->table_name}.user_id = field_roles_not.pages_id AND field_roles_not.data != " . (int) $role->id;
+                                $joins[] = "JOIN field_roles field_roles_not ON " . self::TABLE_NAME . ".user_id = field_roles_not.pages_id AND field_roles_not.data != " . (int) $role->id;
                             } else {
-                                $joins[] = "LEFT JOIN field_roles field_roles_not ON {$this->table_name}.user_id = field_roles_not.pages_id AND field_roles_not.data != " . (int) $role->id;
+                                $joins[] = "LEFT JOIN field_roles field_roles_not ON " . self::TABLE_NAME . ".user_id = field_roles_not.pages_id AND field_roles_not.data != " . (int) $role->id;
                                 $where[] = "field_roles_not.pages_id IS NULL";
                             }
-                            $group_by[] = "{$this->table_name}.id";
+                            $group_by[] = "" . self::TABLE_NAME . ".id";
                         } else if ($this->sanitizer->pageName($value) == $value) {
                             $role = $this->roles->get('name=' . $value);
                             if ($role->id) {
-                                $joins[] = ($operator === '!=' ? 'LEFT ' : '') . "JOIN field_roles ON field_roles.pages_id = {$this->table_name}.user_id AND field_roles.data = " . (int) $role->id;
+                                $joins[] = ($operator === '!=' ? 'LEFT ' : '') . "JOIN field_roles ON field_roles.pages_id = " . self::TABLE_NAME . ".user_id AND field_roles.data = " . (int) $role->id;
                                 if ($operator === '!=') {
                                     $where[] = "field_roles.pages_id IS NULL";
                                 }
@@ -610,12 +623,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         // note: this option is intentionally left out of the GUI in part due to bad performance with
                         // larger amounts of data
                         $value = preg_quote($value);
-                        $where[] = "{$this->table_name}.data REGEXP '\"Fields edited\"\:\"(?:.*? |){$value}(?:,|\")'";
+                        $where[] = "" . self::TABLE_NAME . ".data REGEXP '\"Fields edited\"\:\"(?:.*? |){$value}(?:,|\")'";
                         break;
                     case "flags":
-                        $join = "LEFT OUTER JOIN pages ON pages.id = {$this->table_name}.pages_id";
+                        $join = "LEFT OUTER JOIN pages ON pages.id = " . self::TABLE_NAME . ".pages_id";
                         if (!in_array($join, $joins)) $joins[] = $join;
-                        $joins[] = "JOIN templates ON templates.id IN(pages.templates_id, {$this->table_name}.templates_id)";
+                        $joins[] = "JOIN templates ON templates.id IN(pages.templates_id, " . self::TABLE_NAME . ".templates_id)";
                         if ($flag = constant("Template::flag$value") ?: constant("\ProcessWire\Template::flag$value")) {
                             // since this is a bitwise operation, we need to modify our operator logic... a bit :)
                             $negation = strpos($operator, "!") === 0;
@@ -631,7 +644,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                             break;
                         }
                     default:
-                        $where[] = "{$this->table_name}.{$key} {$operator} " . (substr($key, -3) === '_id' ? (int) $value : "'{$value}'");
+                        $where[] = "" . self::TABLE_NAME . ".{$key} {$operator} " . (substr($key, -3) === '_id' ? (int) $value : "'{$value}'");
                 }
             }
         }
@@ -650,7 +663,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // total count of rows in database table
         $count = $group_by ? "DISTINCT " . substr($group_by, 9) : "*";
-        $sql = "SELECT COUNT({$count}) FROM {$this->table_name} {$joins} {$where}";
+        $sql = "SELECT COUNT({$count}) FROM " . self::TABLE_NAME . " {$joins} {$where}";
         $stmt = $this->database->prepare($sql);
         $stmt->execute();
         $row = $stmt->fetch(\PDO::FETCH_NUM);
@@ -690,7 +703,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         if ($sort != "id") $order_by .= "id DESC";
 
         // stick pieces together to construct final SQL query
-        $query = "SELECT {$this->table_name}.* FROM {$this->table_name} {$joins} {$where} {$group_by} {$order_by}";
+        $query = "SELECT " . self::TABLE_NAME . ".* FROM " . self::TABLE_NAME . " {$joins} {$where} {$group_by} {$order_by}";
         if ($limit) $query .= " LIMIT {$start}, {$limit}";
 
         // return SQL query along with some additional data
@@ -709,7 +722,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * @param array $row
      * @return array
      */
-    private function parseTableRow(array $row) {
+    private function parseTableRow(array $row): array {
 
         // container
         $data = [];
@@ -829,7 +842,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $data[] = $details ? $this->renderDetails($operation, $details) : $this->_("No data available.");
 
         return $data;
-
     }
 
     /**
@@ -898,7 +910,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         }
 
         return implode(" ", $out);
-
     }
 
     /**
@@ -909,9 +920,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * @param int $pages Number of total pager items available
      * @return string
      */
-    private function renderPager($links, $page, $pages) {
+    private function renderPager(int $links, int $page, int $pages): string {
 
-        if ($pages < 2) return;
+        if ($pages < 2) return '';
 
         // convert GET params to string
         $get = "";
@@ -967,20 +978,19 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         );
 
         return "<div class='MarkupPagerNavCustom'>{$out}</div>";
-
     }
 
     /**
      * Render human readable view of row details
      *
-     * @param string $operation
+     * @param string|null $operation
      * @param array $details
      * @return string
      */
-    private function renderDetails($operation = null, $details = []) {
+    private function renderDetails(?string $operation = null, array $details = []): string {
 
         // action details are required
-        if (!$details) return false;
+        if (empty($details)) return '';
 
         // init vars
         $markup = "";
@@ -1008,7 +1018,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         }
 
         return "<table class='details{$class}'>{$markup}</table>";
-
     }
 
     /**
@@ -1024,7 +1033,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 return false;
             }
             $id = (int) $this->input->get->id;
-            $sql = "DELETE FROM {$this->table_name} WHERE id=:id LIMIT 1";
+            $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE id=:id LIMIT 1";
             $stmt = $this->database->prepare($sql);
             $stmt->bindValue(':id', $id, \PDO::PARAM_INT);
             $stmt->execute();
@@ -1038,7 +1047,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      *
      * @return string
      */
-    private function renderFilters() {
+    private function renderFilters(): string {
 
         $markup = "";
 
@@ -1058,11 +1067,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                     $and_on = "templates.flags & " . constant("Template::flag{$flag}");
                     if (strpos($this->input->get->flags, "!") === 0) $and_on = "NOT({$and_on})";
                     $join_flags .= "JOIN templates "
-                                 . "ON templates.id = {$this->table_name}.templates_id "
+                                 . "ON templates.id = " . self::TABLE_NAME . ".templates_id "
                                  . "AND {$and_on}";
                 }
             }
-            $sql = "SELECT DISTINCT {$this->table_name}.templates_id FROM {$this->table_name} {$join_flags}";
+            $sql = "SELECT DISTINCT " . self::TABLE_NAME . ".templates_id FROM " . self::TABLE_NAME . " {$join_flags}";
             $stmt = $this->database->prepare($sql);
             $stmt->execute();
             $rowCount = $stmt->rowCount();
@@ -1156,9 +1165,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 if ($role_name === 'guest') {
                     $role = $this->roles->get('guest');
                     if ($operator === '!=') {
-                        $joins[] = "JOIN field_roles field_roles_not ON {$this->table_name}.user_id = field_roles_not.pages_id AND field_roles_not.data != " . (int) $role->id;
+                        $joins[] = "JOIN field_roles field_roles_not ON " . self::TABLE_NAME . ".user_id = field_roles_not.pages_id AND field_roles_not.data != " . (int) $role->id;
                     } else {
-                        $joins[] = "LEFT JOIN field_roles field_roles_not ON {$this->table_name}.user_id = field_roles_not.pages_id AND field_roles_not.data != " . (int) $role->id;
+                        $joins[] = "LEFT JOIN field_roles field_roles_not ON " . self::TABLE_NAME . ".user_id = field_roles_not.pages_id AND field_roles_not.data != " . (int) $role->id;
                         $where[] = "field_roles_not.pages_id IS NULL";
                     }
                     if ($this->input->get->username && $this->sanitizer->pageName($this->input->get->username) == $this->input->get->username) {
@@ -1170,7 +1179,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 } else if ($this->sanitizer->pageName($role_name) == $role_name) {
                     $role = $this->roles->get('name=' . $role_name);
                     if ($role->id) {
-                        $joins[] = ($operator === '!=' ? 'LEFT ' : '') . "JOIN field_roles ON field_roles.pages_id = {$this->table_name}.user_id AND field_roles.data = " . (int) $role->id;
+                        $joins[] = ($operator === '!=' ? 'LEFT ' : '') . "JOIN field_roles ON field_roles.pages_id = " . self::TABLE_NAME . ".user_id AND field_roles.data = " . (int) $role->id;
                         if ($operator === '!=') {
                             $where[] = "field_roles.pages_id IS NULL";
                         }
@@ -1191,7 +1200,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $where = $where ? "WHERE " . implode(" AND ", $where) : "";
             $joins = $joins ? implode(" ", $joins) : "";
             $sql = "SELECT DISTINCT username
-                    FROM {$this->table_name}
+                    FROM " . self::TABLE_NAME . "
                     {$joins}
                     {$where}
                     ORDER BY username DESC";
@@ -1267,22 +1276,24 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                      . "<a class='ajax' href='{$href}'>" . $this->_('Clear page filter.') . "</a></p>";
         }
 
-        if ($markup) {
-            /** @var InputfieldForm */
-            $form = $this->modules->get('InputfieldForm');
-            $form->attr('id', 'filters');
-            $form->attr('method', 'get');
-            /** @var InputfieldFieldset */
-            $fieldset = $this->modules->get('InputfieldFieldset');
-            $fieldset->label = $this->_('Filters');
-            $fieldset->icon = 'filter';
-            $field = $this->modules->get('InputfieldMarkup');
-            $field->markupText = '<div class="filters">' . $markup . '</div>';
-            $fieldset->append($field);
-            $form->append($fieldset);
-            return $form->render();
+        // bail out early if there's no markup to render
+        if (empty($markup)) {
+            return '';
         }
 
+        /** @var InputfieldForm */
+        $form = $this->modules->get('InputfieldForm');
+        $form->attr('id', 'filters');
+        $form->attr('method', 'get');
+        /** @var InputfieldFieldset */
+        $fieldset = $this->modules->get('InputfieldFieldset');
+        $fieldset->label = $this->_('Filters');
+        $fieldset->icon = 'filter';
+        $field = $this->modules->get('InputfieldMarkup');
+        $field->markupText = '<div class="filters">' . $markup . '</div>';
+        $fieldset->append($field);
+        $form->append($fieldset);
+        return $form->render();
     }
 
     /**
@@ -1293,10 +1304,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * @param array $settings
      * @return string
      */
-    private function renderSelect($name, array $options, array $settings = []) {
+    private function renderSelect(string $name, array $options, array $settings = []): string {
 
         if (!$name || isset($this->available_filters[$name]) && !in_array($name, $this->visible_filters)) {
-            return;
+            return '';
         }
 
         $disabled = "";
@@ -1329,20 +1340,18 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         return "<div class='filter'{$disabled}>"
              . "<select name='{$name}'{$disabled}{$attrs}>{$markup}</select></div>";
-
     }
 
     /**
      * Fetch template data from cache
      *
-     * If cache doesn't yet contain data for requested template, fill it in now
-     * and return newly stored data.
+     * If cache doesn't yet contain data for requested template, fill it in now and return newly stored data.
      *
      * @param string|null $name Name of template
      * @param int|null $id ID of template
-     * @return array Template data
+     * @return array|null Template data
      */
-    private function getCacheTemplate($name = null, $id = null) {
+    private function getCacheTemplate($name = null, $id = null): ?array {
         $key = $id ? "[" . (int) $id . "]" : $name;
         if (!$key) return null;
         $template_data = isset($this->template_cache[$key]) ? $this->template_cache[$key] : null;
@@ -1358,7 +1367,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 ];
             } else {
                 $where = $id ? "templates_id = {$id}" : "data LIKE '%\"Template name\":\"{$name}\"%'";
-                $sql = "SELECT data, templates_id FROM {$this->table_name} WHERE {$where} LIMIT 1";
+                $sql = "SELECT data, templates_id FROM " . self::TABLE_NAME . " WHERE {$where} LIMIT 1";
                 $stmt = $this->database->prepare($sql);
                 $stmt->execute();
                 if ($stmt->rowCount()) {
@@ -1388,7 +1397,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
     public function ___install() {
 
         // create a page for this module
-        $page = new Page();
+        $page = $this->wire(new Page());
         $page->template = 'admin';
         $page->name = self::PAGE_NAME;
         $page->process = $this;
@@ -1409,13 +1418,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // create changelog permission
         $permission = $this->permissions->get("changelog");
         if (!$permission->id) {
-            $permission = new Permission();
+            $permission = $this->wire(new Permission());
             $permission->name = "changelog";
             $permission->title = $this->_("Access changelog");
             $permission->save();
             $this->message("Created Permission: {$permission->name}");
         }
-
     }
 
     /**
@@ -1442,7 +1450,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $this->message("Deleting Permission: {$permission->name}");
             $permission->delete();
         }
-
     }
 
 }

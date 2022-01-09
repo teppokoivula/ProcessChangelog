@@ -8,7 +8,7 @@
  * 
  * For detailed information and installation instructions see README.md.
  *
- * @copyright 2013-2021 Teppo Koivula
+ * @copyright 2013-2022 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessChangelogHooks extends WireData implements Module, ConfigurableModule {
@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.10.0',
+            'version' => '1.10.1',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -68,15 +68,15 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     
     /**
      * Name of the database table used by this module
-     * 
-     * @param string
+     *
+     * @var string
      */
     const TABLE_NAME = 'process_changelog';
     
     /**
      * Schema version for database table used by this module
      * 
-     * @param int
+     * @var int
      */
     const SCHEMA_VERSION = 4;
 
@@ -102,7 +102,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
     public function getModuleConfigInputfields(array $data) {
 
         // container for fields
-        $fields = new InputfieldWrapper();
+        $fields = $this->wire(new InputfieldWrapper());
 
         // merge default config settings (custom values overwrite defaults)
         $defaults = self::getDefaultData();
