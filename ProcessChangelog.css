@@ -16,6 +16,10 @@ form#filters .filter-spacer {
     margin: .25rem 0;
 }
 
+form#filters select:focus {
+    outline: .125rem solid #326dca;
+}
+
 form#filters select,
 form#filters .log-datepicker {
     -webkit-appearance: none;
@@ -24,7 +28,7 @@ form#filters .log-datepicker {
     background: transparent;
     border: 0;
     position: relative;
-    padding: 0.5em 2.25em 0.5em 1em;
+    padding: 0.5em 2.25rem .5rem 1rem !important;
     cursor: pointer;
 }
 
@@ -41,6 +45,8 @@ form#filters .filter.disabled input {
 }
 
 form#filters .filter {
+    display: flex;
+    align-items: center;
     border-radius: 2px;
     position: relative;
     border: 1px solid rgba(0,0,0,0.25);
@@ -48,12 +54,14 @@ form#filters .filter {
     background: linear-gradient(to bottom, #fafafa, #fff);
 }
 
-form#filters .filter:not(.no-icon)::before {
-    font-family: FontAwesome;
-    padding: 0.4em 0 0 0;
+form#filters .filter:not(.no-icon) .icon--after::before {
     position: absolute;
+    right: 0;
+    top: .5rem;
+    font-family: FontAwesome;
     content: '\f0d7';
-    right: 0.75em;
+    padding-right: 1rem;
+    pointer-events: none;
 }
 
 #ui-datepicker-div {
@@ -72,9 +80,9 @@ table.log strong {
     margin: 0 2px 0 0;
     border-radius: 2px;
     font-weight: normal;
-    background: #6195ba;
+    background: #0277c8;
     display: inline-block;
-    transition: opacity 0.2s;
+    transition: background-color 0.2s;
 }
 
 table.log .page {
@@ -83,30 +91,26 @@ table.log .page {
     box-shadow: inset 0 0 1px rgba(0,0,0,0.25);
 }
 
-table.log a.tag::before {
+table.log a.tag .icon::before {
     font-family: FontAwesome;
     display: inline-block;
     opacity: 0.6;
     width: 1.2em;
 }
 
-table.log a.tag.selected::before {
+table.log a.tag.selected .icon::before {
     content: '\f046';
 }
 
-table.log a.tag:not(.selected)::before {
+table.log a.tag:not(.selected) .icon::before {
     content: '\f096';
 }
 
 table.log a.tag:hover {
-    opacity: 0.8;
+    background: #026bb6;
 }
 
-table.log span {
-    display: inline-block;
-}
-
-table.log span:not(.user) {
+table.log span:not(.visual-label):not(.visually-hidden) {
     padding: 4px 10px;
 }
 
@@ -137,25 +141,29 @@ table.log tr th:last-child {
     width: 100px;
 }
 
+table.log tr th:focus {
+    outline: .125rem solid #326dca;
+}
+
 table.AdminDataList.log tr td .user {
     font-weight: normal;
 }
 
-table.AdminDataList.log tr td .user::before {
+table.AdminDataList.log tr td .user .icon::before {
     font-family: FontAwesome;
     padding-right: 0.5em;
 }
 
-table.AdminDataList.log tr td .user::before {
+table.AdminDataList.log tr td .user .icon::before {
     content: '\f007';
 }
 
-table.AdminDataList.log tr td .user.deleted::before {
+table.AdminDataList.log tr td .user.deleted .icon::before {
     content: '\f235';
     color: #8a8a8a;
 }
 
-table.AdminDataList.log tr td .user.guest::before {
+table.AdminDataList.log tr td .user.guest .icon::before {
     content: '\f21b';
     color: #8a8a8a;
 }
@@ -166,16 +174,19 @@ table.log tr.open td {
 
 table.log a.more {
     cursor: pointer;
-    user-select: none;
 }
 
-table.log a.more::after {
+table.log a.more:hover .icon {
+    display: inline-block;
+}
+
+table.log a.more .icon::after {
     font-family: FontAwesome;
-    padding-left: 0.5em;
     content: '\f107';
 }
 
-table.log tr.open a.more::after {
+table.log tr.open a.more .icon::after {
+    font-family: FontAwesome;
     content: '\f106';
 }
 
@@ -207,7 +218,12 @@ table.log tr.more:hover th {
     background: transparent;
 }
 
-table.log tr.more table::before {
+table.log .details-table > .icon {
+    position: absolute;
+    left: .5rem;
+}
+
+table.log .details-table > .icon::before {
     top: 0.5em;
     left: 0.5em;
     color: #2f4248;
@@ -217,35 +233,35 @@ table.log tr.more table::before {
     font-family: FontAwesome;
 }
 
-table.log tr.more table.icon-added::before {
+table.log .details-table.icon-added > .icon::before {
     content: '\f067';
 }
 
-table.log tr.more table.icon-moved::before {
+table.log .details-table.icon-moved > .icon::before {
     content: '\f0b2';
 }
 
-table.log tr.more table.icon-trashed::before {
+table.log .details-table.icon-trashed > .icon::before {
     content: '\f014';
 }
 
-table.log tr.more table.icon-renamed::before {
+table.log .details-table.icon-renamed > .icon::before {
     content: '\f1dc';
 }
 
-table.log tr.more table.icon-deleted::before {
+table.log .details-table.icon-deleted > .icon::before {
     content: '\f12d';
 }
 
-table.log tr.more table.icon-restored::before {
+table.log .details-table.icon-restored > .icon::before {
     content: '\f0e2';
 }
 
-table.log tr.more table.icon-published::before {
+table.log .details-table.icon-published > .icon::before {
     content: '\f135';
 }
 
-table.log tr.more table.icon-unpublished::before {
+table.log .details-table.icon-unpublished > .icon::before {
     content: '\f05e';
 }
 
@@ -298,15 +314,9 @@ table.log a.action:not(.selected) {
     }
 }
 
-table.log tr:hover a.action:not(.selected) {
+table.log tr:hover a.action:not(.selected),
+table.log tr:focus-within a.action:not(.selected) {
     visibility: visible;
-    opacity: 0.33;
-}
-
-table.log tr.open a.action,
-table.log tr a.action:hover {
-    visibility: visible;
-    opacity: 1;
 }
 
 /* --- misc --- */
@@ -345,4 +355,29 @@ table.log tr a.action:hover {
     font-family: FontAwesome;
     padding: 0 0.5em 0 0;
     content: '\f09e';
+}
+
+form#filters i,
+table.log i {
+    font-style: normal;
+    display: inline-block;
+}
+
+form#filters .js-icon,
+table.log .js-icon {
+    display: none;
+}
+
+form#filters .visually-hidden,
+table.log .visually-hidden {
+    border: 0;
+    clip: rect(1px, 1px, 1px, 1px);
+    clip-path: inset(50%);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    width: 1px;
+    word-wrap: normal !important;
 }

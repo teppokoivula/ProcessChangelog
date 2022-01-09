@@ -22,7 +22,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.14.2',
+            'version' => '1.14.3',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -733,26 +733,35 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         }
 
         // timestamp (raw timestamp is hidden and only included to allow proper sorting with JavaScript)
-        $date = $this->date_format ? date($this->date_format, strtotime($row['timestamp'])) : $row['timestamp'];
+        $time = strtotime($row['timestamp']);
+        $date = $this->date_format ? date($this->date_format, $time) : $row['timestamp'];
         $date = str_replace('-', '‑', $date);
-        $data[] = "<span hidden>{$row['timestamp']}</span>{$date}";
+        $data[] = "<span hidden>" . str_replace(['-', ':', ' '], '', $row['timestamp']) . "</span>"
+            . "<time datetime='" . date('c', $time) . "'>{$date}</time>";
 
         // username
         $selected = $this->input->get->username == $row['username'] ? ' selected' : '';
         $query_string = $this->parseQueryString([
             'username' => $selected ? null : $row['username'],
         ]);
-        $filter = " <a class='ajax action{$selected}' href='?{$query_string}'><i class='fa fa-filter'></i></a>";
+        $filter = " <a class='ajax action{$selected}' href='?{$query_string}'>"
+            . "<i class='fa fa-filter' aria-label='" . sprintf($this->_('Filter by username: %s'), $row['username']) . "'></i>"
+            . "</a>";
         if ($row['username'] == 'guest') {
             // guest user, no need to show an edit link
-            $data[] = "<span class='user guest'>" . $this->_('guest') . "</span>{$filter}";
+            $data[] = "<span class='user guest visual-label'><i class='icon' aria-hidden='true'></i>" . $this->_('guest') . "</span>{$filter}";
         } else {
             // check if user still exists and if yes, provide an edit link
             $user = $this->users->get((int) $row['user_id']);
             if ($user->id) {
-                $data[] = "<a class='user' href='{$this->config->urls->admin}access/users/edit/?id={$user->id}'>{$user->name}</a>{$filter}";
+                $data[] = "<a class='user' href='{$this->config->urls->admin}access/users/edit/?id={$user->id}'>"
+                    . "<i class='icon' aria-hidden='true'></i>"
+                    . "<span class='visually-hidden'>" . sprintf($this->_('Edit user: %s'), $user->name). "</span>"
+                    . "<span class='visual-label' aria-hidden='true'>{$user->name}</span>"
+                    . "</a>{$filter}";
             } else {
-                $data[] = "<span class='user deleted' title='" . $this->_("deleted") . "'>{$row['username']}</span>{$filter}";
+                $label = $this->_("deleted user");
+                $data[] = "<span class='user deleted visual-label' title='{$label}' aria-label='{$label}: {$row['username']}'><i class='icon' aria-hidden='true'></i>{$row['username']}</span>{$filter}";
             }
         }
 
@@ -795,7 +804,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             if ($page->editable()) {
                 // append edit link to target
                 $href = "{$this->config->urls->admin}page/edit/?id={$page->id}";
-                $target .= " &nbsp; <a class='action edit-page' href='{$href}'>" . $this->_('edit page') . "</a>";
+                $target .= " &nbsp; <a class='action edit-page' href='{$href}'>"
+                    . "<span class='visual-label' aria-hidden='true'>" . $this->_('edit page') . "</span>"
+                    . "<span class='visually-hidden'>" . sprintf($this->_('Edit page: %s'), $page->name) . "</span>"
+                    . "</a>";
             }
         } else if ($row['templates_id']) {
             $template = $this->templates->get((int) $row["templates_id"]);
@@ -804,7 +816,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         if ($template) {
             $template_icons = "";
             if ($template->flags & Template::flagSystem) {
-                $template_icons .= " <i class='fa fa-gear' title='" . $this->_("System template") . "'></i>";
+                $template_icons .= " <i class='fa fa-gear' title='(" . $this->_("System template") . ")'></i>";
             }
             $template_label = $template->label ? $template->label : $template;
             if (in_array('template', $this->visible_filters)) {
@@ -812,7 +824,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 $query_string = $this->parseQueryString([
                     'template' => $selected ? '' : $template->name,
                 ]);
-                $template = "<a class='ajax tag template{$selected}' href='?{$query_string}'>{$template_label}{$template_icons}</a> ";
+                $template = "<a class='ajax tag template{$selected}' href='?{$query_string}'><i class='icon' aria-hidden='true'></i>{$template_label}{$template_icons}</a> ";
             } else {
                 $template = "<strong class='template'>{$template_label}{$template_icons}</strong> ";
             }
@@ -829,11 +841,18 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $query_string = $this->parseQueryString([
             'operation' => $selected ? '' : $operation,
         ]);
-        $data[] = "<a class='ajax tag{$selected}' href='?{$query_string}'>{$operation_i18n}</a> {$template} {$target}";
+        $data[] = "<a class='ajax tag{$selected}' href='?{$query_string}'>"
+            . "<i class='icon' aria-hidden='true'></i>"
+            . "<span class='visually-hidden'>" . sprintf($this->_('Filter by operation: %s'), $operation_i18n) . "</span>"
+            . "<span class='visual-label' aria-hidden='true'>{$operation_i18n}</span>"
+            . "</a> {$template} {$target}";
 
         // link for removing individual row
         if (!$this->optional_permissions['remove']->id || $this->user->hasPermission($this->optional_permissions['remove'])) {
-            $data[] = "<a href='./delete/?id={$row['id']}' class='action remove-row'>" . $this->_("remove?") . "</a>";
+            $data[] = "<a href='./delete/?id={$row['id']}' class='action remove-row'>"
+                . "<span class='visual-label' aria-hidden='true'>" . $this->_("remove?") . "</span>"
+                . "<span class='visually-hidden'>" . $this->_("remove current row") . "</span>"
+                . "</a>";
         } else {
             $data[] = "";
         }
@@ -1017,7 +1036,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $markup .= "<tr><th>" . $this->_($key) . "</th><td>{$value}</td></tr>";
         }
 
-        return "<table class='details{$class}'>{$markup}</table>";
+        return "<div class='details-table{$class}'>"
+            . "<i class='js-icon' aria-hidden='true'></i>"
+            . "<table class='details' tabindex='-1'>{$markup}</table>"
+            . "</div>";
     }
 
     /**
@@ -1054,6 +1076,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         // operations
         $markup .= $this->renderSelect(
             'operation',
+            $this->_('Operation'),
             array_flip($this->available_filters['operation']['options'])
         );
 
@@ -1083,7 +1106,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 $key = sprintf($this->_("%s pages"), $template['label']); // %s pages // %s will be replaced run-time by template
                 $options[$key] = $template['name'];
             }
-            $markup .= $this->renderSelect('template', $options);
+            $markup .= $this->renderSelect('template', $this->_('Template'), $options);
         }
 
         // flags
@@ -1122,7 +1145,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 // unset "with any flags" if flags matched
                 if (count($options) > 1) unset($options[0]);
             }
-            $markup .= $this->renderSelect('flags', $options);
+            $markup .= $this->renderSelect('flags', $this->_('Flags'), $options);
         }
 
         // role
@@ -1132,19 +1155,19 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 $options[$role->id] = $role->name;
             }
             if (in_array('username', $this->visible_filters)) {
-                $markup .= "<span class='filter-label'>"
+                $markup .= "<span class='filter-label' aria-hidden='true'>"
                     . (in_array("operation", $this->visible_filters) ? $this->_('by')
                         : $this->_('modified by'))
                     . "</span>";
             } else {
-                $markup .= "<span class='filter-label'>"
+                $markup .= "<span class='filter-label' aria-hidden='true'>"
                 . (in_array("operation", $this->visible_filters) ? $this->_('by user with')
                     : $this->_('modified by user with'))
                 . "</span>";
             }
-            $markup .= $this->renderSelect('role', $options);
+            $markup .= $this->renderSelect('role', $this->_('Role'), $options);
             if (!in_array('username', $this->visible_filters)) {
-                $markup .= "<span class='filter-label'>"
+                $markup .= "<span class='filter-label' aria-hidden='true'>"
                     . $this->_('role')
                     . "</span>";
             }
@@ -1208,11 +1231,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $stmt->execute();
             $rowCount = $stmt->rowCount();
             if (in_array('role', $this->visible_filters)) {
-                $markup .= "<span class='filter-label'>"
+                $markup .= "<span class='filter-label' aria-hidden='true'>"
                 . $this->_('user')
                 . "</span>";
             } else {
-                $markup .= "<span class='filter-label'>"
+                $markup .= "<span class='filter-label' aria-hidden='true'>"
                 . (in_array("operation", $this->visible_filters) ? $this->_('by')
                     : $this->_('modified by'))
                 . "</span>";
@@ -1221,7 +1244,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 $key = $row['username'] == "guest" ? $this->_("guest") : $row['username'];
                 $options[$key] = $row['username'];
             }
-            $markup .= $this->renderSelect('username', $options);
+            $markup .= $this->renderSelect('username', $this->_('Username'), $options);
         }
 
         // when
@@ -1232,7 +1255,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 if (in_array('date_range', $this->visible_filters)) {
                     $options[$this->_("between")] = "between";
                 }
-                $markup .= $this->renderSelect('when', $options);
+                $markup .= $this->renderSelect('when', $this->_('When'), $options);
             }
 
             // date range
@@ -1300,11 +1323,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      * Render markup for select element
      *
      * @param string $name
+     * @param string $label
      * @param array $options
      * @param array $settings
      * @return string
      */
-    private function renderSelect(string $name, array $options, array $settings = []): string {
+    private function renderSelect(string $name, string $label, array $options, array $settings = []): string {
 
         if (!$name || isset($this->available_filters[$name]) && !in_array($name, $this->visible_filters)) {
             return '';
@@ -1338,8 +1362,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $markup .= "<option{$selected} value='{$value}'>{$text}</option>";
         }
 
-        return "<div class='filter'{$disabled}>"
-             . "<select name='{$name}'{$disabled}{$attrs}>{$markup}</select></div>";
+        return "<label class='filter'{$disabled}>"
+            . "<i class='icon icon--before' aria-hidden='true'></i>"
+            . "<span class='visually-hidden'>{$label}</span>"
+            . "<select name='{$name}'{$disabled}{$attrs}>{$markup}</select>"
+            . "<i class='icon icon--after' aria-hidden='true'></i>"
+            . "</label>";
     }
 
     /**

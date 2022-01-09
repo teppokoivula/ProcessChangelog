@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.3] - 2021-01-09
+
+### Changed
+- Accessibility improvements.
+
+### Fixed
+- Properly init AdminDataTable(s) after content has been updated asynchronously.
+
 ## [1.14.1] - 2022-01-09
 
 ### Changed
