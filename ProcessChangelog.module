@@ -22,7 +22,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.14.3',
+            'version' => '1.14.4',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -478,7 +478,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $rss = new \SimpleXMLElement('<rss/>');
         $rss->addAttribute('version', '2.0');
 
-        // create channel eelment
+        // create channel element
         $channel = $rss->addChild('channel');
         $channel->addChild('title', $this->_('Changelog'));
         $channel->addChild('link', $this->input->httpUrl . ($_GET ? '?' . htmlentities($this->input->queryString) : ''));
@@ -749,7 +749,11 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             . "</a>";
         if ($row['username'] == 'guest') {
             // guest user, no need to show an edit link
-            $data[] = "<span class='user guest visual-label'><i class='icon' aria-hidden='true'></i>" . $this->_('guest') . "</span>{$filter}";
+            $data[] = "<span class='user guest visual-label'>"
+                . "<i class='icon' aria-hidden='true'></i>"
+                . $this->_('guest')
+                . "</span>"
+                . $filter;
         } else {
             // check if user still exists and if yes, provide an edit link
             $user = $this->users->get((int) $row['user_id']);
@@ -758,10 +762,15 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                     . "<i class='icon' aria-hidden='true'></i>"
                     . "<span class='visually-hidden'>" . sprintf($this->_('Edit user: %s'), $user->name). "</span>"
                     . "<span class='visual-label' aria-hidden='true'>{$user->name}</span>"
-                    . "</a>{$filter}";
+                    . "</a>"
+                    . $filter;
             } else {
                 $label = $this->_("deleted user");
-                $data[] = "<span class='user deleted visual-label' title='{$label}' aria-label='{$label}: {$row['username']}'><i class='icon' aria-hidden='true'></i>{$row['username']}</span>{$filter}";
+                $data[] = "<span class='user deleted visual-label' title='{$label}' aria-label='{$label}: {$row['username']}'>"
+                    . "<i class='icon' aria-hidden='true'></i>"
+                    . $row['username']
+                    . "</span>"
+                    . $filter;
             }
         }
 
@@ -1263,7 +1272,6 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 $disabled_title = $this->_("Not relevant in this context");
                 $date_from = $this->input->get->date_from ? date('d.m.Y', strtotime($this->input->get->date_from)) : '';
                 $date_until = $this->input->get->date_until ? date('d.m.Y', strtotime($this->input->get->date_until)) : '';
-                $input = $this->modules->get("InputfieldText");
                 $markup .= "<div class='filter no-icon'>"
                          . "<input type='text'"
                          . " value='{$date_from}'"
@@ -1308,14 +1316,18 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $form = $this->modules->get('InputfieldForm');
         $form->attr('id', 'filters');
         $form->attr('method', 'get');
+
         /** @var InputfieldFieldset */
         $fieldset = $this->modules->get('InputfieldFieldset');
         $fieldset->label = $this->_('Filters');
         $fieldset->icon = 'filter';
+
+        /** @var InputfieldMarkup */
         $field = $this->modules->get('InputfieldMarkup');
         $field->markupText = '<div class="filters">' . $markup . '</div>';
         $fieldset->append($field);
         $form->append($fieldset);
+
         return $form->render();
     }
 
@@ -1336,12 +1348,14 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         $disabled = "";
         if (count($options) < 2) {
-            $disabled = " disabled='disabled' class='disabled'";
+            $disabled = " disabled";
         }
 
         $attrs = "";
         if (isset($settings['attrs'])) {
-            foreach ($settings['attrs'] as $k => $v) $attrs .= " {$k}='{$v}'";
+            foreach ($settings['attrs'] as $k => $v) {
+                $attrs .= " {$k}='{$v}'";
+            }
         }
 
         $markup = "";
@@ -1350,8 +1364,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $text = !is_numeric($key) ? $key : $option;
             if (isset($settings['translate'])) {
                 // phrase "deleted" is used in multiple contexts
-                if ($text == "deleted") $text = _x($text, $name);
-                else $text = $this->_($text);
+                $text = $text == "deleted"
+                    ? _x($text, $name)
+                    : $this->_($text);
             }
             $selected = "";
             if ($this->input->get->$name == "!" . $value) {
@@ -1466,7 +1481,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $moduleID = $this->modules->getModuleID($this);
         $page = $this->pages->get("template=admin, process={$moduleID}, name=" . self::PAGE_NAME);
 
-        if($page->id) {
+        if ($page->id) {
             // if we found the page, let the user know and delete it
             $this->message("Deleting Page: {$page->path}");
             $page->delete();

@@ -16,6 +16,7 @@ $(document).ready(function() {
         // more/less functionality
         $table.on('click keyup', 'a.more', function(e) {
             if (e.type == 'click' || e.type == 'keyup' && (e.keyCode == 32 || e.keyCode == 40 || e.keyCode == 38|| e.keyCode == 13)) {
+                e.preventDefault();
                 var $tr = $(this).parents('tr:first').toggleClass('open');
                 $(this).children('.text:first').text(config.log.i18n[$tr.hasClass('open') ? 'less' : 'more']);
                 if ($tr.hasClass('open') || e.type == 'keyup' && e.keyCode == 38) {
@@ -113,7 +114,9 @@ $(document).ready(function() {
     var updateContent = function(params) {
         var $spinner = $('#info h2 i.fa-spinner');
         if (!$spinner.length || $spinner.data('params') != params) {
-            if ($spinner.length && updateXHR) updateXHR.abort();
+            if ($spinner.length && updateXHR) {
+                updateXHR.abort();
+            }
             $spinner = $('<i class="fa fa-spinner fa-spin"></i>').data('params', params);
             $('#info h2').append($spinner);
             history.replaceState(null, null, params);
