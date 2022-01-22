@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.5] - 2022-01-22
+
+### Changed
+- Accessibility improvements.
+
+### Fixed
+- In some core versions Page::is() can return an integer (https://github.com/processwire/processwire-issues/issues/1510), in which case extraneous hid/unhid/publish/unpublish events were recorded. Return value is now typecasted to boolean to avoid this.
+
 ## [1.14.3] - 2022-01-09
 
 ### Changed
