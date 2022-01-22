@@ -24,7 +24,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.10.2',
+            'version' => '1.10.3',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -652,13 +652,13 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $page = $event->arguments[0];
 
         // was this page was hidden or unhidden?
-        if ($page->is(Page::statusHidden) !== (bool) ($page->statusPrevious & Page::statusHidden)) {
+        if ((bool) $page->is(Page::statusHidden) !== (bool) ($page->statusPrevious & Page::statusHidden)) {
             $event->method = $page->is(Page::statusHidden) ? "hid" : "unhid";
             $this->logPageEvent($event);
         }
 
         // was this page published or unpublished?
-        if ($page->is(Page::statusUnpublished) !== (bool) ($page->statusPrevious & Page::statusUnpublished)) {
+        if ((bool) $page->is(Page::statusUnpublished) !== (bool) ($page->statusPrevious & Page::statusUnpublished)) {
             $event->method = $page->is(Page::statusUnpublished) ? "unpublished" : "published";
             $this->logPageEvent($event);
         }
