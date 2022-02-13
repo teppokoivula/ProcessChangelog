@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.7] - 2022-02-13
+
+### Changed
+- Remove log row now has a clearer confirmation message, to signal that it's removing a log row rather than a page.
+
 ## [1.14.6] - 2022-02-13
 
 ### Added
