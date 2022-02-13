@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.6] - 2022-02-13
+
+### Added
+- New "view page" link for each existing and viewable item in the changelog table.
+
 ## [1.14.5] - 2022-01-22
 
 ### Changed
