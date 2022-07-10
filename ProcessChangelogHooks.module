@@ -567,12 +567,21 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         if ($page->templatePrevious) $details['Previous template name'] = $page->templatePrevious->name;
 
         $details['Page URL'] = $event->pageURL ?: $page->url;
+        if ($page->id === 1 && $this->modules->isInstalled("LanguageSupportPageNames")) {
+            $details['Page URL'] = "/" . ($page->name && $page->name !== Pages::defaultRootName ? $page->name . "/" : "");
+        }
         if ($page->parentPrevious && $operation != "edited") {
             // for pages being edited current or previous parent is irrelevant
             // data since changing parent will also trigger "moved" operation.
             $details['Previous page URL'] = $page->parentPrevious->url;
             if ($page->namePrevious) $details['Previous page URL'] .= $page->namePrevious . "/";
             else $details['Previous page URL'] .= $page->name . "/";
+        } else if ($operation == 'renamed') {
+            if ($page->id === 1 && $this->modules->isInstalled("LanguageSupportPageNames")) {
+                $details['Previous page URL'] = "/" . ($page->namePrevious && $page->namePrevious !== Pages::defaultRootName ? $page->namePrevious . "/" : "");
+            } else if ($event->pageNamePrevious || $page->namePrevious) {
+                $details['Previous page URL'] = ($page->parent->url ?: '/') . ($event->pageNamePrevious ?: $page->namePrevious) . "/";
+            }
         }
 
         // note: currently only "edited" operation keeps track of edited fields

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.8] - 2022-07-10
+
+### Fixed
+- Missing "Previous page URL" notice in changelog views.
+- Issue where page name was sometimes handled incorrectly on multi-lingual sites while renaming page.
+
 ## [1.14.7] - 2022-02-13
 
 ### Changed
