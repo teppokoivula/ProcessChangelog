@@ -1,0 +1,656 @@
+<?php namespace ProcessWire;
+
+/**
+ * Process Changelog Form Builder companion module
+ *
+ * This module adds support for logging Form Builder form events to Process Changelog.
+ *
+ * @copyright 2023 Teppo Koivula
+ * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
+ */
+class ProcessChangelogForms extends WireData implements Module, ConfigurableModule {
+
+    /**
+     * Return information about this module (required)
+     *
+     * @return array
+     */
+    public static function getModuleInfo() {
+        return [
+            'title' => 'Changelog Forms',
+            'summary' => 'Optional Form Builder companion module for Process Changelog',
+            'href' => 'https://processwire.com/modules/process-changelog/',
+            'author' => 'Teppo Koivula',
+            'version' => '0.0.1',
+            'icon' => 'building',
+            'singular' => true,
+            'autoload' => true,
+            'requires' => 'ProcessChangelog, FormBuilder',
+        ];
+    }
+
+    /**
+     * Default configuration for this module
+     *
+     * The point of putting this in it's own function is so that you don't have to specify
+     * these defaults more than once.
+     *
+     * @return array
+     */
+    public static function getDefaultData() {
+        return [
+            'operations' => [
+                "added" => __("added"),
+                "edited" => __("edited"),
+                "renamed" => __("renamed"),
+                "deleted" => __("deleted"),
+            ],
+            'ignored_roles' => [],
+            'ignored_users' => [],
+            'log_caller' => null,
+            'data_max_age' => null,
+            'data_max_age_days' => null,
+            'schema_version' => 1,
+        ];
+    }
+
+    /**
+     * Name of the database table used by this module
+     *
+     * @var string
+     */
+    const TABLE_NAME = 'process_changelog_forms';
+
+    /**
+     * Schema version for database table used by this module
+     * 
+     * @var int
+     */
+    const SCHEMA_VERSION = 1;
+
+    /**
+     * Form names indexed by ID
+     *
+     * @var array|null
+     */
+    protected $form_names = null;
+
+    /**
+     * Form data indexed by ID
+     *
+     * @var array|null
+     */
+    protected $form_data = null;
+
+    /**
+     * Populate the default config data
+     *
+     * ProcessWire will automatically overwrite it with anything the user has specifically configured.
+     * This is done in construct() rather than init() because ProcessWire populates config data after
+     * construct(), but before init().
+     */
+    public function __construct() {
+        foreach (self::getDefaultData() as $key => $value) {
+            $this->$key = $value;
+        }
+    }
+
+    /**
+     * Module configuration
+     *
+     * @param array $data
+     * @return InputfieldWrapper
+     */
+    public function getModuleConfigInputfields(array $data) {
+
+        // container for fields
+        $fields = $this->wire(new InputfieldWrapper());
+
+        // merge default config settings (custom values overwrite defaults)
+        $defaults = self::getDefaultData();
+        $data = array_merge($defaults, $data);
+
+        // check for a schema update
+        if ($data['schema_version'] < self::SCHEMA_VERSION) {
+            $this->message($this->getDatabaseSchemaUpdateNotice(), Notice::allowMarkup);
+        }
+
+        // logging settings
+        $logging = $this->modules->get("InputfieldFieldset");
+        $logging->name = "logging";
+        $logging->label = __("Logging");
+        $logging->description = __("These settings define which actions and what kind of data gets logged.");
+        $logging->icon = "book";
+        $fields->add($logging);
+
+        // which operations should be tracked?
+        $field = $this->modules->get("InputfieldCheckboxes");
+        $field->name = "operations";
+        $field->label = __("Operations");
+        $field->addOptions($defaults['operations']);
+        $field->optionColumns = 3;
+        $field->value = $data['operations'] === $defaults['operations'] ? array_keys($defaults['operations']) : $data['operations'];
+        $field->description = __("You can choose which operations to keep track of here.");
+        $field->notes = __("Note that unchecking operations later won't remove rows containing them from database. Instead new rows of those types will no longer be created and existing ones won't be visible anymore.");
+        $field->icon = "filter";
+        $logging->add($field);
+
+        // should caller (script or URL that triggered this action) be logged?
+        $field = $this->modules->get("InputfieldSelect");
+        $field->name = "log_caller";
+        $field->label = __("Caller logging");
+        $field->description = __("Enable logging of path/URL for script that triggered action?");
+        $field->addOptions([
+            null => __("Disabled"),
+            'external' => __("For external callers only (CLI and external applications)"),
+            'all' => __('For all callers (CLI, external applications and ProcessWire itself)'),
+        ]);
+        $field->notes = __("This can be useful when trying to find out why certain change was triggered. On the other hand it adds to the size of your database table and slightly slows script execution, which is why it's disabled by default.");
+        $field->icon = "phone";
+        $field->value = $data[$field->name];
+        $logging->add($field);
+
+        // ignore settings
+        $ignore_settings = $this->modules->get("InputfieldFieldset");
+        $ignore_settings->name = "ignore_settings";
+        $ignore_settings->label = $this->_("Ignore settings");
+        $ignore_settings->description = $this->_("These options control which templates, fields, roles, and users *don't* get logged. Keep in mind, though, that making changes here will not erase any existing data.");
+        $ignore_settings->icon = "ban";
+        $fields->add($ignore_settings);
+
+        // roles that should be ignored when logging changes
+        $field = $this->modules->get("InputfieldAsmSelect");
+        $field->name = "ignored_roles";
+        $field->label = __("Ignored roles");
+        $field->description = __("Ignore these roles when logging changes.");
+        $field->notes = __("Note that \"guest\" has a special meaning here: with other roles the user is ignored if they have any of the ignored roles, whereas guest users are only ignored if they have the guest role *and no other roles whatsoever*.");
+        $field->icon = "gears";
+        $field->columnWidth = 50;
+        foreach (wire('pages')->find('template=role, check_access=0')->explode(['id', 'name']) as $role) {
+            $field->addOption($role['id'], $role['name']);
+        }
+        $field->value = $data[$field->name];
+        $ignore_settings->add($field);
+
+        // users that should be ignored when logging changes
+        $field = $this->modules->get("InputfieldAsmSelect");
+        $field->name = "ignored_users";
+        $field->label = __("Ignored users");
+        $field->description = __("Ignore these users when logging changes.");
+        $field->icon = "users";
+        $field->columnWidth = 50;
+        $user_templates = wire('config')->userTemplateIds ? implode('|', wire('config')->userTemplateIDs) : 'user';
+        foreach (wire('pages')->find('template=' . $user_templates . ', check_access=0')->explode(['id', 'name']) as $role) {
+            $field->addOption($role['id'], $role['name']);
+        }
+        $field->value = $data[$field->name];
+        $ignore_settings->add($field);
+
+        // data retention settings
+        $data_retention = $this->modules->get("InputfieldFieldset");
+        $data_retention->name = "data_retention";
+        $data_retention->label = __("Data retention");
+        $data_retention->description = __("These settings define how long collected data should be retained for, as well as the circumstances under which it may be erased.");
+        $data_retention->icon = "database";
+        $fields->add($data_retention);
+
+        // for how long should collected data be retained?
+        $field = $this->modules->get("InputfieldSelect");
+        $field->name = "data_max_age";
+        $field->label = __("Data max age");
+        $field->description = __("For how long should we retain collected data?");
+        $field->notes = __("Automatic cleanup requires LazyCron module, which isn't currently installed.");
+        $field->icon = "calendar";
+        if ($this->modules->isInstalled("LazyCron")) {
+            $field->addOptions([
+                '1 WEEK' => __('1 week'),
+                '2 WEEK' => __('2 weeks'),
+                '1 MONTH' => __('1 month'),
+                '2 MONTH' => __('2 months'),
+                '3 MONTH' => __('3 months'),
+                '6 MONTH' => __('6 months'),
+                '1 YEAR' => __('1 year'),
+                'num_days' => __('Specific number of days'),
+            ]);
+            $field->notes = __("Leave empty to disable automatic cleanup.");
+            $field->value = $data[$field->name];
+        }
+        $data_retention->add($field);
+
+        // alternative to predefined intervals: number of days to retain collected data
+        $field = $this->modules->get("InputfieldInteger");
+        $field->name = "data_max_age_days";
+        $field->label = __("Data max age in days");
+        $field->description = __("This setting provides more granular control over the data retention period.");
+        $field->notes = __("If you leave this field empty, data will be retained indefinitely.");
+        $field->icon = "clock-o";
+        $field->value = $data[$field->name] ?? null;
+        $field->min = 1;
+        $field->showIf = "data_max_age=num_days";
+        $data_retention->add($field);
+
+        // limit for collected data rows
+        $field = $this->modules->get("InputfieldInteger");
+        $field->name = "data_max_rows";
+        $field->label = __("Data max rows");
+        $field->description = __("How many rows of data should we retain?");
+        $field->notes = __("Note that extra rows may be removed if there are identical timestamps. If you leave this field empty, data is not limited by number of rows.");
+        $field->icon = "ellipsis-v";
+        $field->value = $data[$field->name] ?? null;
+        $field->min = 1;
+        $data_retention->add($field);
+
+        // prune data now?
+        $field = $this->modules->get("InputfieldCheckbox");
+        $field->name = "prune_data_now";
+        $field->label = __("Prune data now?");
+        $field->description = __("If you check this option and save module settings, data retention settings will be applied right away, meaning that any old data will be removed.");
+        $field->notes = __('Note: this operation may take a long time.');
+        $field->icon = "trash";
+        $data_retention->add($field);
+
+        // additional settings
+        $additional_settings = $this->modules->get("InputfieldFieldset");
+        $additional_settings->name = "additional_settings";
+        $additional_settings->label = __("Additional settings");
+        $additional_settings->description = __("Miscellaneous settings for adjusting the behaviour of the module.");
+        $additional_settings->icon = "sliders";
+        $fields->add($additional_settings);
+
+        // database schema version
+        $field = $this->modules->get("InputfieldInteger");
+        $field->name = "schema_version";
+        $field->label = __("Schema version");
+        $field->icon = "warning";
+        $field->value = $data['schema_version'];
+        $field->collapsed = Inputfield::collapsedYes;
+        $field->notes = __("Under normal circumstances you should never have to manually modify this field. It can, however, be used to skip over a specific schema update, or let Proces Changelog Hooks know that you've applied the update manually via the database.");
+        $fields->add($field);
+
+        return $fields;
+    }
+
+    /**
+     * Initialize the module and attach required hooks
+     */
+    public function init() {
+
+        // update the database schema (if not the latest one yet)
+        if ($this->schema_version < self::SCHEMA_VERSION) {
+            $this->updateDatabaseSchema();
+        }
+
+        // trigger cleanup once a day
+        if ($this->data_max_age) {
+            $this->addHook("LazyCron::everyDay", $this, 'cleanup');
+        }
+
+        // trigger data pruning (cleanup) when module config is saved
+        $this->addHookBefore('Modules::saveConfig', $this, 'saveConfig');
+
+        // add hooks that prepare data required later in the process
+        $this->addHookBefore('FormBuilder::save', $this, 'prepareData');
+
+        // add hooks that gather information and trigger insert
+        $this->addHookAfter('FormBuilder::addNew', $this, 'logFormEvent');
+        $this->addHookAfter('FormBuilder::delete', $this, 'logFormEvent');
+        $this->addHookAfter('FormBuilder::save', $this, 'logFormEvent');
+    }
+
+    /**
+     * Delete data older than defined interval
+     *
+     * @param null|string|int|HookEvent $interval Interval, defaults to data_max_age setting
+     * @param null|int $max_rows max rows of data, defaults to data_max_rows setting
+     */
+    public function cleanup($interval = null, ?int $max_rows = null) {
+
+        // called via LazyCron or null value provided for interval, get data_max_age from module config
+        if ($interval instanceof HookEvent || $interval === null) {
+            $interval = empty($this->data_max_age) ? null : $this->data_max_age;
+        }
+
+        // in case interval is "num_days", get value from the data_max_age_days setting instead
+        if ($interval === 'num_days') {
+            $interval = $this->data_max_age_days ? (int) $this->data_max_age_days : null;
+        }
+
+        // define number of rows
+        $max_rows = $max_rows ?? $this->data_max_rows ?? null;
+        $max_rows = $max_rows !== null && (int) $max_rows == $max_rows && (int) $max_rows > 0 ? (int) $max_rows : null;
+
+        // delete old data from database
+        if ($interval !== null) {
+            $interval = is_int($interval) ? $interval . ' DAY' : $this->database->escapeStr($interval);
+            $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE timestamp < DATE_SUB(NOW(), INTERVAL $interval)";
+            try {
+                $this->database->exec($sql);
+            } catch(\Exception $e) {
+                $this->error($e->getMessage());
+            }
+        }
+
+        // delete extraneous rows from database
+        if ($max_rows !== null) {
+            $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE timestamp <= (SELECT timestamp FROM " . self::TABLE_NAME . " ORDER BY timestamp DESC LIMIT $max_rows, 1)";
+            try {
+                $this->database->exec($sql);
+            } catch(\Exception $e) {
+                $this->error($e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * This method gets triggered when module config is saved
+     *
+     * @param HookEvent $event
+     */
+    protected function saveConfig(HookEvent $event) {
+
+        // bail out early if saving another module's config
+        $class = $event->arguments[0];
+        if (is_string($class) && $class !== $this->className || is_object($class) && $class != $this) {
+            return;
+        }
+
+        // check if "prune data now" option is checked
+        $data = $event->arguments[1];
+        if (is_array($data) && !empty($data['prune_data_now']) || $data === 'prune_data_now' && !empty($event->arguments[2])) {
+
+            // make sure that latest values are used in case data retention rules are saved during current request
+            $interval = is_array($data) && !empty($data['data_max_age']) ? $data['data_max_age'] : null;
+            if ($interval === 'num_days') {
+                $interval = !empty($data['data_max_age_days']) ? (int) $data['data_max_age_days'] : null;
+            }
+            $max_rows = is_array($data) && !empty($data['data_max_rows']) ? $data['data_max_rows'] : null;
+
+            // prune data
+            $is_valid_interval = $interval !== null || !is_array($data) && $this->data_max_age && ($this->data_max_age !== 'num_days' || !empty($this->data_max_age_days));
+            $is_valid_rows = $max_rows !== null;
+            if ($is_valid_interval || $is_valid_rows) {
+                $this->cleanup($interval, $max_rows);
+                $this->message($this->_('Data was pruned according to rules specified by configured data retention settings.'));
+            } else {
+                $this->warning($this->_('Module settings were saved but data retention rules were not specified, so no data was pruned.'));
+            }
+
+            // make sure that "prune data now" option value doesn't get saved
+            if (is_array($data)) {
+                unset($data['prune_data_now']);
+                $event->arguments(1, $data);
+            }
+            $event->arguments(2, null);
+        }
+    }
+
+    /**
+     * Prepare data required later in the process
+     *
+     * @param HookEvent $event
+     */
+    protected function prepareData(HookEvent $event) {
+
+        // get form names indexed by form IDs
+        if ($this->form_names === null) {
+            $this->form_names = $this->database->query("SELECT id, name FROM forms")->fetchAll(\PDO::FETCH_KEY_PAIR);
+        }
+
+        // get form data for a specific form ID
+        $form_id = (int) $event->arguments[0]->id;
+        if ($form_id) {
+            if ($this->form_data === null) {
+                $this->form_data = [];
+            }
+            if (!isset($this->form_data[$form_id])) {
+                $this->form_data[$form_id] = $this->database->query("SELECT data FROM forms WHERE id = " . $form_id . " LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
+                $this->form_data[$form_id] = $this->form_data[$form_id]['data'] ?? '[]';
+            }
+        }
+    }
+
+    /**
+     * Log FormBuilder form events
+     *
+     * @param HookEvent $event
+     */
+    protected function logFormEvent(HookEvent $event) {
+
+        // variables from event
+        $operation = $event->method == "addNew" ? "added" : ($event->method == "save" ? "edited" : "deleted");
+        $form = is_string($event->arguments[0]) ? $event->return : $event->arguments[0];
+        if ($operation === "edited" && $this->form_names[$form->id] != $form->name) $operation = "renamed";
+
+        // check if this event should be logged
+        if (!$this->shouldLogFormEvent($form, $operation)) {
+            return;
+        }
+
+        // details about form being edited, deleted etc.
+        $details = [
+            'Form ID' => $form->id,
+            'Form name' => $form->name,
+        ];
+
+        // add form name if it was renamed
+        if ($operation == 'renamed') {
+            $details['Previous form name'] = $this->form_names[$form->id];
+        }
+
+        // add form data if it is being edited
+        if ($operation == 'edited') {
+            $form_data = $this->database->query("SELECT data FROM forms WHERE id = " . ((int) $form->id) . " LIMIT 1")->fetch(\PDO::FETCH_ASSOC);
+            $form_data = $form_data['data'] ?? [];
+            $details = array_merge(
+                $details,
+                $this->getFormDataDiff($form_data, $this->form_data[$form->id])
+            );
+        }
+
+        // find out which script / URL triggered this particular action
+        if ($this->log_caller && $caller = $this->getCaller()) $details['Caller'] = $caller;
+
+        $this->insert($operation, $form->id, $details);
+    }
+
+    /**
+     * Should we log this Form event?
+     *
+     * @param FormBuilderForm $form
+     * @param string $operation
+     * @return bool
+     */
+    protected function ___shouldLogFormEvent(FormBuilderForm $form, $operation) {
+
+        // don't log operations by ignored user roles
+        if (!empty($this->ignored_roles)) {
+            foreach ($this->ignored_roles as $ignored_role) {
+                if ($ignored_role == $this->config->guestUserRolePageID) {
+                    // Note: guest role needs special treatment, or ignoring it wouldn't be of any
+                    // real use. In this case we'll only ignore users with **only** the guest role.
+                    if ($this->user->roles->count == 1) {
+                        return false;
+                    }
+                } else if ($this->user->hasRole($ignored_role)) {
+                    return false;
+                }
+            }
+        }
+
+        // don't log operations by ignored users
+        if (!empty($this->ignored_users) && in_array($this->user->id, $this->ignored_users)) {
+            return false;
+        }
+
+        // only continue if this operation is set to be logged
+        if (!in_array($operation, $this->operations)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Find out which script / URL triggered current action
+     *
+     * @return string|null
+     */
+    private function getCaller() {
+
+        $index = $this->config->paths->root . "index.php";
+        $caller = realpath($_SERVER['SCRIPT_FILENAME']);
+        $caller_is_processwire = $caller === $index;
+
+        if (isset($_SERVER['HTTP_HOST'])) {
+            if (!isset($_SERVER['REQUEST_URI'])) {
+                // IIS support, based on http://davidwalsh.name/iis-php-server-request_uri
+                $qs = isset($_SERVER['QUERY_STRING']) ? "?" . $_SERVER['QUERY_STRING'] : "";
+                $_SERVER['REQUEST_URI'] = substr($_SERVER['PHP_SELF'], 1) . $qs;
+            }
+            $scheme = $this->config->https ? "https://" : "http://";
+            $caller = $scheme . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+        }
+
+        if ($this->log_caller == "all" || !$caller_is_processwire) {
+            return $caller;
+        }
+    }
+
+    /**
+     * Insert row into database
+     *
+     * @param string $operation
+     * @param int $forms_id
+     * @param array $details
+     *
+     * @throws WireException if operation is unknown
+     */
+    private function insert($operation, $forms_id, $details = []) {
+
+        if (!in_array($operation, $this->operations)) {
+            throw new WireException('Unknown operation');
+        }
+
+        $forms_id = (int) $forms_id;
+        $user_id = (int) $this->user->id;
+        $username = $this->user->name;
+
+        // validate and encode details to JSON
+        if ($details) {
+            foreach ($details as &$detail) {
+                $detail = str_replace("'", "", $detail);
+                $detail = wire()->sanitizer->text($detail);
+            }
+            $details = json_encode($details);
+        } else $details = null;
+
+        // insert new row into database
+        $sql = "INSERT INTO " . self::TABLE_NAME . " " .
+               "(user_id, username, forms_id, operation, data) VALUES " .
+               "(:user_id, :username, :forms_id, :operation, :data) ";
+        try {
+            $stmt = $this->database->prepare($sql); 
+            $stmt->bindValue(':user_id', $user_id, \PDO::PARAM_INT);
+            $stmt->bindValue(':username', $username, \PDO::PARAM_STR);
+            $stmt->bindValue(':forms_id', $forms_id, \PDO::PARAM_INT);
+            $stmt->bindValue(':operation', $operation, \PDO::PARAM_STR);
+            $stmt->bindValue(':data', $details, \PDO::PARAM_STR);
+            $stmt->execute();
+        } catch(\Exception $e) {
+            $this->error($e->getMessage());
+        }
+    }
+
+    /**
+     * Get diff between two form data arrays
+     *
+     * @param string $old_data
+     * @param string $new_data
+     * @return array
+     */
+    protected function getFormDataDiff(string $old_data, string $new_data) {
+
+        if (file_exists(__DIR__ . '/vendor/autoload.php') && !class_exists('\Swaggest\JsonDiff\JsonDiff')) {
+            require_once __DIR__ . '/vendor/autoload.php';
+        }
+
+        if (class_exists('\Swaggest\JsonDiff\JsonDiff')) {
+            return [
+                'Diff' => json_encode((new \Swaggest\JsonDiff\JsonDiff(
+                    json_decode($old_data), 
+                    json_decode($new_data),
+                    \Swaggest\JsonDiff\JsonDiff::REARRANGE_ARRAYS
+                ))->getPatch()->jsonSerialize()),
+            ];
+        }
+        
+        $diff = [];
+
+        $old_data = json_decode($old_data, true);
+        $new_data = json_decode($new_data, true);
+
+        // find out which fields were added
+        foreach ($new_data as $name => $data) {
+            if (!isset($old_data[$name])) {
+                $diff['Added data'] = (empty($diff['Added data']) ? '' : $diff['Added data'] . ', ') . $name;
+            }
+        }
+
+        // find out which fields were removed
+        foreach ($old_data as $name => $data) {
+            if (!isset($new_data[$name])) {
+                $diff['Removed data'] = (empty($diff['Removed data']) ? '' : $diff['Removed data'] . ', ') . $name;
+            }
+        }
+
+        // find out which fields were edited
+        foreach ($new_data as $name => $data) {
+            if (isset($old_data[$name])) {
+                if ($data != $old_data[$name]) {
+                    $diff['Edited data'] = (empty($diff['Edited data']) ? '' : $diff['Edited data'] . ', ') . $name;
+                }
+            }
+        }
+
+        return $diff;
+    }
+
+    /**
+     * Called only when this module is installed
+     *
+     * Creates new custom database table for storing data.
+     */
+    public function ___install() {
+
+        // create required database table
+        $sql = "
+        CREATE TABLE " . self::TABLE_NAME . " (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            user_id INT(10) UNSIGNED NOT NULL DEFAULT 0,
+            username VARCHAR(128) DEFAULT NULL,
+            forms_id INT(10) UNSIGNED NOT NULL DEFAULT 0,
+            operation VARCHAR(128) NOT NULL,
+            data TEXT DEFAULT NULL,
+            timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE = MYISAM;
+        ";
+        $this->database->exec($sql);
+
+        // add indexes to speed up queries
+        $this->database->exec("ALTER TABLE " . self::TABLE_NAME . " ADD INDEX `forms_id` (`forms_id`), ADD INDEX `username` (`username`), ADD INDEX `forms_id__id` (`forms_id`, `id`)");
+
+        // tell the user that we've created new database table
+        $this->message("Created Table: " . self::TABLE_NAME);
+    }
+
+    /**
+     * Called only when this module is uninstalled
+     *
+     * Drops database table created during installation.
+     */
+    public function ___uninstall() {
+        $this->message("Removing database table: " . self::TABLE_NAME);
+        $this->database->exec("DROP TABLE IF EXISTS " . self::TABLE_NAME);
+    }
+    
+}

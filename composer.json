@@ -17,6 +17,13 @@
     ],
     "require": {
         "php": ">=7.1",
-        "wireframe-framework/processwire-composer-installer": "^1.0.0"
+        "wireframe-framework/processwire-composer-installer": "^1.0.0",
+        "swaggest/json-diff": "^3.10"
+    },
+    "config": {
+        "allow-plugins": {
+            "hari/pw-module": true,
+            "wireframe-framework/processwire-composer-installer": true
+        }
     }
 }
