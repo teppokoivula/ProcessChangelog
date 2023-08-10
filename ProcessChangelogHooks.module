@@ -8,10 +8,17 @@
  * 
  * For detailed information and installation instructions see README.md.
  *
- * @copyright 2013-2022 Teppo Koivula
+ * @copyright 2013-2023 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessChangelogHooks extends WireData implements Module, ConfigurableModule {
+
+    /**
+     * Previously logged event data as a hash (used to prevent duplicate entries)
+     *
+     * @var string|null
+     */
+    protected $previous_event_hash = null;
 
     /**
      * Return information about this module (required)
@@ -24,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.10.3',
+            'version' => '1.10.4',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -586,6 +593,11 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
         // note: currently only "edited" operation keeps track of edited fields
         if (!empty($fields_edited)) $details['Fields edited'] = implode(", ", $fields_edited);
+
+        // prevent duplicate events for the same page
+        $event_hash = $page->id . '.' . $operation . '.' . md5(json_encode($details));
+        if ($this->previous_event_hash == $event_hash) return;
+        $this->previous_event_hash = $event_hash;
 
         // find out which script / URL triggered this particular action
         if ($this->log_caller && $caller = $this->getCaller()) $details['Caller'] = $caller;

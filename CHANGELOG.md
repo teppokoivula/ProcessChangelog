@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.10] - 2023-08-10
+
+### Fixed
+- Prevent PHP notices in cases where previous page values are not available.
+- Prevent duplicate entries, which could occur e.g. when dragging page to trash or out of trash.
+
 ## [1.14.9] - 2023-08-10
 
 ### Fixed
