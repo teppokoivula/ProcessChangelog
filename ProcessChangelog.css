@@ -36,11 +36,12 @@ form#filters select::-ms-expand {
     display: none;
 }
 
-form#filters .filter[disabled] {
+form#filters .filter.disabled,
+form#filters .filter.disabled + .filter-spacer {
     opacity: .5;
 }
 
-form#filters .filter[disabled] input {
+form#filters .filter.disabled input {
     cursor: default;
 }
 
