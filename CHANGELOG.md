@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.11] - 2023-08-10
+
+### Fixed
+- Clear date_from/date_until inputs and remove date_from/date_until from URL if "when" filter has a value that doesn't work with these options.
+
 ## [1.14.10] - 2023-08-10
 
 ### Fixed

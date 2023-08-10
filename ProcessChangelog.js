@@ -85,11 +85,15 @@ $(document).ready(function() {
         var $when = $filters.find('select[name=when]');
         if ($when.length && $when.prop('value') != "between") {
             $filters.find('.log-datepicker')
+                .val('')
                 .parent('div')
                     .addClass('disabled')
                     .end()
                 .attr('title', $filters.find('input[name=date_from]').attr('data-disabled-title'))
                 .attr('disabled', 'disabled');
+            if (window.location.search.match(/date_from=/) || window.location.search.match(/date_until=/)) {
+                history.replaceState(null, null, '?' + $filters.serialize());
+            }
         }
 
         // init datepicker
