@@ -1,5 +1,22 @@
 $(document).ready(function() {
 
+    var resetFilterOptions = function() {
+        var $filters = $('form#filters');
+        var $when = $filters.find('select[name=when]');
+        if ($when.length && $when.prop('value') != "between") {
+            $filters.find('.log-datepicker')
+                .val('')
+                .parent('div')
+                    .addClass('disabled')
+                    .end()
+                .attr('title', $filters.find('input[name=date_from]').attr('data-disabled-title'))
+                .attr('disabled', 'disabled');
+            if (window.location.search.match(/date_from=/) || window.location.search.match(/date_until=/)) {
+                history.replaceState(null, null, '?' + $filters.serialize());
+            }
+        }
+    }
+
     var initLog = function() {
 
         var $table = $('table.log');
@@ -61,12 +78,14 @@ $(document).ready(function() {
 
         // AJAX filter form
         $filters.on('change', 'select, input', function() {
+            resetFilterOptions();
             updateContent('?' + $filters.serialize());
         });
 
         // AJAX links
         $table.parent().off('click.ajax').on('click.ajax', 'a.ajax', function(event) {
             event.preventDefault();
+            resetFilterOptions();
             updateContent($(this).attr('href'));
         });
 
@@ -82,19 +101,7 @@ $(document).ready(function() {
         });
 
         // hide irrelevant options in filter form
-        var $when = $filters.find('select[name=when]');
-        if ($when.length && $when.prop('value') != "between") {
-            $filters.find('.log-datepicker')
-                .val('')
-                .parent('div')
-                    .addClass('disabled')
-                    .end()
-                .attr('title', $filters.find('input[name=date_from]').attr('data-disabled-title'))
-                .attr('disabled', 'disabled');
-            if (window.location.search.match(/date_from=/) || window.location.search.match(/date_until=/)) {
-                history.replaceState(null, null, '?' + $filters.serialize());
-            }
-        }
+        resetFilterOptions();
 
         // init datepicker
         $('.log-datepicker').each(function() {

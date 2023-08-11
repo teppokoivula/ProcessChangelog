@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.12] - 2023-08-12
+
+### Fixed
+- Clear date_from/date_until values after changing the value of "when" filter but before updating content if "when" filter has a value that doesn't work with these options.
+
 ## [1.14.11] - 2023-08-10
 
 ### Fixed
