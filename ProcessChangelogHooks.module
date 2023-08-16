@@ -31,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.10.4',
+            'version' => '1.11.0',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -561,46 +561,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         }
 
         // details about page being edited, trashed, moved etc.
-        $details = [];
-
-        if ($page->title) $details['Page title'] = $page->title;
-
-        $details['Page name'] = $event->pageName ?: $page->name;
-        if ($event->pageNamePrevious || $page->namePrevious) {
-            $details[($operation == "moved" ? 'Page name' : 'Previous page name')] = $event->pageNamePrevious ?: $page->namePrevious;
-        }
-
-        $details['Template name'] = $page->template->name;
-        if ($page->templatePrevious) $details['Previous template name'] = $page->templatePrevious->name;
-
-        $details['Page URL'] = $event->pageURL ?: $page->url;
-        if ($page->id === 1 && $this->modules->isInstalled("LanguageSupportPageNames")) {
-            $details['Page URL'] = "/" . ($page->name && $page->name !== Pages::defaultRootName ? $page->name . "/" : "");
-        }
-        if ($page->parentPrevious && $operation != "edited") {
-            // for pages being edited current or previous parent is irrelevant
-            // data since changing parent will also trigger "moved" operation.
-            $details['Previous page URL'] = $page->parentPrevious->url;
-            if ($page->namePrevious) $details['Previous page URL'] .= $page->namePrevious . "/";
-            else $details['Previous page URL'] .= $page->name . "/";
-        } else if ($operation == 'renamed') {
-            if ($page->id === 1 && $this->modules->isInstalled("LanguageSupportPageNames")) {
-                $details['Previous page URL'] = "/" . ($page->namePrevious && $page->namePrevious !== Pages::defaultRootName ? $page->namePrevious . "/" : "");
-            } else if ($event->pageNamePrevious || $page->namePrevious) {
-                $details['Previous page URL'] = ($page->parent->url ?: '/') . ($event->pageNamePrevious ?: $page->namePrevious) . "/";
-            }
-        }
-
-        // note: currently only "edited" operation keeps track of edited fields
-        if (!empty($fields_edited)) $details['Fields edited'] = implode(", ", $fields_edited);
-
-        // prevent duplicate events for the same page
-        $event_hash = $page->id . '.' . $operation . '.' . md5(json_encode($details));
-        if ($this->previous_event_hash == $event_hash) return;
-        $this->previous_event_hash = $event_hash;
-
-        // find out which script / URL triggered this particular action
-        if ($this->log_caller && $caller = $this->getCaller()) $details['Caller'] = $caller;
+        $details = $this->getPageEventDetails($page, $event, $operation, $fields_edited);
 
         $this->insert($operation, $page->id, $page->template->id, $details);
 
@@ -608,6 +569,67 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         if ($page->isChanged('status') && !in_array($operation, ["unpublished", "published", "hid", "unhid"])) {
             $this->triggerStatusEvents($event);
         }
+    }
+
+    /**
+     * Get details about page being edited, trashed, moved etc.
+     *
+     * @param Page $page
+     * @param HookEvent $event
+     * @param string $operation
+     * @param array $fields_edited
+     * @return array|null
+     */
+    protected function ___getPageEventDetails(Page $page, HookEvent $event, string $operation, array $fields_edited): ?array {
+
+        $details = [
+            'Page title' => $page->title,
+            'Page name' => $event->pageName ?: $page->name,
+            'Previous page name' => $event->pageNamePrevious ?: $page->namePrevious,
+            'Page URL' => $event->pageURL ?: $page->url,
+            'Previous page URL' => null,
+            'Template name' => $page->template->name,
+            'Previous template name' => $page->templatePrevious ? $page->templatePrevious->name : null,
+            'Fields edited' => empty($fields_edited) ? null : implode(', ', $fields_edited),
+        ];
+
+        if ($operation == 'moved') {
+            $details['Page name'] = $details['Previous page name'];
+            unset($details['Previous page name']);
+        }
+
+        if ($page->id === 1 && $this->modules->isInstalled('LanguageSupportPageNames')) {
+            $details['Page URL'] = '/' . ($page->name && $page->name !== Pages::defaultRootName ? $page->name . '/' : '');
+        }
+
+        if ($page->parentPrevious && $operation != 'edited') {
+            // for pages being edited, current or previous parent is irrelevant (changing the parent will also trigger "moved" operation)
+            $details['Previous page URL'] = $page->parentPrevious->url . ($page->namePrevious ?: $page->name) . '/';
+        } else if ($operation == 'renamed') {
+            if ($page->id === 1 && $this->modules->isInstalled('LanguageSupportPageNames')) {
+                $details['Previous page URL'] = '/' . ($page->namePrevious && $page->namePrevious !== Pages::defaultRootName ? $page->namePrevious . '/' : '');
+            } else if ($event->pageNamePrevious || $page->namePrevious) {
+                $details['Previous page URL'] = ($page->parent->url ?: '/') . ($event->pageNamePrevious ?: $page->namePrevious) . '/';
+            }
+        }
+
+        // find out which script or URL triggered this particular action
+        if ($this->log_caller && $caller = $this->getCaller()) {
+            $details['Caller'] = $caller;
+        }
+
+        $details = array_filter($details, function($value) {
+            return $value !== null && $value !== '';
+        });
+
+        // prevent duplicate events for the same page
+        $event_hash = $page->id . '.' . $operation . '.' . md5(json_encode($details));
+        if ($this->previous_event_hash == $event_hash) {
+            return null;
+        }
+        $this->previous_event_hash = $event_hash;
+
+        return $details;
     }
 
     /**

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.15.0] - 2023-08-16
+
+### Added
+- New hookable method ProcessChangelogHooks::getPageEventDetails().
+
 ## [1.14.12] - 2023-08-12
 
 ### Fixed
