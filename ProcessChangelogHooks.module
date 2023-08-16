@@ -31,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.11.0',
+            'version' => '1.11.1',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -561,7 +561,9 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         }
 
         // details about page being edited, trashed, moved etc.
+        // note: if details are null, this means that we shouldn't log this event
         $details = $this->getPageEventDetails($page, $event, $operation, $fields_edited);
+        if ($details === null) return;
 
         $this->insert($operation, $page->id, $page->template->id, $details);
 
