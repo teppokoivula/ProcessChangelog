@@ -31,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.11.1',
+            'version' => '1.11.2',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -261,7 +261,6 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $field->name = "data_max_rows";
         $field->label = __("Data max rows");
         $field->description = __("How many rows of data should we retain?");
-        $field->notes = __("Note that extra rows may be removed if there are identical timestamps. If you leave this field empty, data is not limited by number of rows.");
         $field->icon = "ellipsis-v";
         $field->value = $data[$field->name] ?? null;
         $field->min = 1;
@@ -424,9 +423,21 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
 
         // delete extraneous rows from database
         if ($max_rows !== null) {
-            $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE timestamp <= (SELECT timestamp FROM " . self::TABLE_NAME . " ORDER BY timestamp DESC LIMIT $max_rows, 1)";
             try {
-                $this->database->exec($sql);
+                $last_removable_row_query = $this->database->query('SELECT id, timestamp FROM ' . self::TABLE_NAME . ' ORDER BY timestamp DESC, id DESC LIMIT ' . $max_rows . ', 1');
+                $last_removable_row = $last_removable_row_query->fetch(\PDO::FETCH_NUM);
+                if ($last_removable_row !== false) {
+                    list($last_removable_row_id, $max_timestamp) = $last_removable_row;
+                    $row_number = $this->database->query('SELECT COUNT(*) FROM ' . self::TABLE_NAME)->fetchColumn();
+                    if ($row_number !== false && (int) $row_number == $row_number && $row_number > $max_rows) {
+                        $sql = 'DELETE FROM ' . self::TABLE_NAME . ' WHERE timestamp <= :max_timestamp AND id <= :last_removable_row_id ORDER BY timestamp ASC, id ASC LIMIT :limit';
+                        $stmt = $this->database->prepare($sql);
+                        $stmt->bindValue(':max_timestamp', $max_timestamp, \PDO::PARAM_STR);
+                        $stmt->bindValue(':last_removable_row_id', $last_removable_row_id, \PDO::PARAM_INT);
+                        $stmt->bindValue(':limit', $row_number - $max_rows, \PDO::PARAM_INT);
+                        $stmt->execute();
+                    }
+                }
             } catch(\Exception $e) {
                 $this->error($e->getMessage());
             }

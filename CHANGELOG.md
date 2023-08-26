@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.15.2] - 2023-08-26
+
+### Fixed
+- Fixed database error occurring in some environments while running cleanup based on a max number of rows.
+- Pruning data to a specific number of rows should now prune it to exactly that number, even if there are identical timestamps.
+
 ## [1.15.1] - 2023-08-16
 
 ### Fixed
-- Fixed issue introduced in previous version where duplicate entry detection was not working properly.
+- Issue introduced in previous version where duplicate entry detection was not working properly.
 
 ## [1.15.0] - 2023-08-16
 
