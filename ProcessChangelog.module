@@ -377,7 +377,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // make sure that we have a newish version of Font-Awesome loaded
         if (version_compare($this->config->version, '3.0.18', '<')) {
-            $this->config->styles->add('//maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css');
+            $this->config->styles->add('//cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.1/css/fontawesome.min.css');
         }
 
         // render filters (this has to be done here because certain filter
