@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.15.3] - 2023-10-12
+
+### Changed
+- New CDN URL for FontAwesome icons by @snobjorn (#39).
+
 ## [1.15.2] - 2023-08-26
 
 ### Fixed
