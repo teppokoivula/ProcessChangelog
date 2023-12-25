@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.1] - 2023-12-25
+
+### Fixed
+- Fix for handling of LIMIT setting when provided via GET param.
+
 ## [1.16.0] - 2023-12-25
 
 ### Added
