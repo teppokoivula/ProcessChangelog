@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.0] - 2023-12-25
+
+### Added
+- New hookable methods ProcessChangelog::getHeaderRow() and ProcessChangelog::parseTableRow().
+
 ## [1.15.3] - 2023-10-12
 
 ### Changed

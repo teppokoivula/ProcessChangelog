@@ -58,6 +58,29 @@ This may take a while to run, but shouldn't result in a timeout, which is the mo
 
 If you are unable to run the schema update this way, you may perform expected changes (see ProcessChangelogHooks::updateDatabaseSchema() for applicable SQL command(s)) directly in the database and then manually update "schema version" setting in Process Changelog Hooks module config.
 
+### Hooks
+
+Process Changelog exposes various hookable methods, some of which you can use to customize the data that is collected, while others are more useful for triggering actions or simply modifying the output of the module itself. Here we'll provide some ideas about hooking into the module's execution.
+
+Note: this section of the README is a work in progress; more tips and tricks will likely be added later.
+
+#### Adding new column(s) to the admin table view
+
+You can customize the admin table view, typically to add new columns (but alternatively to remove some columns) by hooking into `ProcessChangelog::getHeaderRow()` and `ProcessChangelog::parseTableRow()`:
+
+```php
+// add header row for our new column
+$wire->addHookAfter('ProcessChangelog::getHeaderRow', function($event) {
+	$event->return = array_merge($event->arguments[0], ['Fields']);
+});
+
+// add data for our new column
+$wire->addHookAfter('ProcessChangelog::parseTableRow', function($event) {
+	$details = json_decode($event->arguments[0]['data'], true) ?: [];
+	$event->return = array_merge($event->return, [$details['Fields edited'] ?? '']);
+});
+```
+
 ## Settings
 
 This module contains a bunch of settings you should be aware of. Settings can be defined via ProcessWire's native module configuration screen, and each of the bundled module's has it's own settings.
