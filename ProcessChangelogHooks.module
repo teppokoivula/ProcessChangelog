@@ -8,7 +8,7 @@
  * 
  * For detailed information and installation instructions see README.md.
  *
- * @copyright 2013-2023 Teppo Koivula
+ * @copyright 2013-2024 Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessChangelogHooks extends WireData implements Module, ConfigurableModule {
@@ -31,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.11.2',
+            'version' => '1.11.3',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -200,16 +200,15 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $ignore_settings->add($field);
 
         // users that should be ignored when logging changes
-        $field = $this->modules->get("InputfieldAsmSelect");
+        $field = $this->modules->get("InputfieldPageAutocomplete");
         $field->name = "ignored_users";
         $field->label = __("Ignored users");
         $field->description = __("Ignore these users when logging changes.");
         $field->icon = "users";
         $field->columnWidth = 50;
         $user_templates = wire('config')->userTemplateIds ? implode('|', wire('config')->userTemplateIDs) : 'user';
-        foreach (wire('pages')->find('template=' . $user_templates . ', check_access=0')->explode(['id', 'name']) as $role) {
-            $field->addOption($role['id'], $role['name']);
-        }
+        $field->findPagesSelector = 'template=' . $user_templates . ', check_access=0';
+        $field->labelFieldName = 'name';
         $field->value = $data[$field->name];
         $ignore_settings->add($field);
 

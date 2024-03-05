@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.2] - 2024-03-05
+
+### Changed
+- ProcessChangelogHooks config screen now uses autocomplete search for users (performance).
+
 ## [1.16.1] - 2023-12-25
 
 ### Fixed
