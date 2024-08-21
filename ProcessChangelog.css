@@ -329,6 +329,13 @@ table.log tr:focus-within a.action:not(.selected) {
     margin-right: 3px;
 }
 
+#info {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+}
+
 #info h2 i {
     font-size: 1em !important;
     margin-left: .5em;

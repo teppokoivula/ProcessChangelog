@@ -19,6 +19,7 @@ $(document).ready(function() {
 
     var initLog = function() {
 
+        var $info = $('#info');
         var $table = $('table.log');
         var $filters = $('form#filters');
 
@@ -30,26 +31,45 @@ $(document).ready(function() {
                 $(this)
                     .find('> td:eq(' + moreColumnIndex + ')')
                     .wrapInner('<span hidden></span>')
-                    .append('<a class="more" tabindex="0"><span class="text">' + config.log.i18n.more + '</span><i class="icon" aria-hidden="true"></i></a>');
+                    .append('<a class="more" tabindex="0" role="button"><span class="text">' + config.log.i18n.more + '</span><i class="icon" aria-hidden="true"></i></a>');
             });
 
             // more/less functionality
-            $table.on('click keyup', 'a.more', function(e) {
+            $table.on('click keyup', 'a.more', function(e, noFocus) {
                 if (e.type == 'click' || e.type == 'keyup' && (e.keyCode == 32 || e.keyCode == 40 || e.keyCode == 38|| e.keyCode == 13)) {
                     e.preventDefault();
-                    var $tr = $(this).parents('tr:first').toggleClass('open');
+                    var $tr = $(this).parents('tr:first');
+                    if ($table.hasClass('open-all') && $tr.next('tr.more').length) return;
+                    $tr.toggleClass('open');
                     $(this).children('.text:first').text(config.log.i18n[$tr.hasClass('open') ? 'less' : 'more']);
-                    if ($tr.hasClass('open') || e.type == 'keyup' && e.keyCode == 38) {
+                    if (($table.hasClass('open-all') || $tr.hasClass('open')) || e.type == 'keyup' && e.keyCode == 38) {
                         var colspan = $tr.find('> td').length;
                         var details = $(this).prev('[hidden]').html();
                         $tr.after('<tr class="more"><td colspan="' + colspan + '">' + details + '</td></tr>');
-                        $tr.next('tr.more').find('.details:first').focus();
+                        if (!$table.hasClass('no-focus')) {
+                            $tr.next('tr.more').find('.details:first').focus();
+                        }
                     } else {
                         $tr.next('tr.more').remove();
                     }
                 }
             });
         }
+
+        // more/less open/collapse all toggle
+        var $moreToggleAll = $('<a class="more-toggle-all" tabindex="0" role="button"><span class="text">' + config.log.i18n.openAll + '</span><i class="icon" aria-hidden="true"></i></a>');
+        $info.append($moreToggleAll);
+        $info.on('click keyup', 'a.more-toggle-all', function(e) {
+            if (e.type == 'click' || e.type == 'keyup' && (e.keyCode == 32 || e.keyCode == 13)) {
+                e.preventDefault();
+                $table.addClass('no-focus');
+                $table.toggleClass('open-all');
+                $table.find('a.more').trigger('click');
+                $moreToggleAll.find('.text').text(config.log.i18n[$table.hasClass('open-all') ? 'collapseAll' : 'openAll']);
+                console.log($table.hasClass('open-all'));
+                $table.removeClass('no-focus');
+            }
+        });
 
         // remove link
         $table.on('click', 'a.remove-row', function() {
@@ -98,7 +118,7 @@ $(document).ready(function() {
             event.preventDefault();
             var params = $(this).attr('href');
             $('html, body').animate({
-                scrollTop: $('#info').offset().top
+                scrollTop: $info.offset().top
             }, 500, function() {
                 updateContent(params);
             });
@@ -123,17 +143,18 @@ $(document).ready(function() {
     }
 
     // update content via AJAX
-    var $contentContainer = $('#info').parent();
+    var $info = $('#info');
+    var $contentContainer = $info.parent();
     var isUikit = $contentContainer.find('.uk-select:first').length > 0;
     var updateXHR;
     var updateContent = function(params) {
-        var $spinner = $('#info h2 i.fa-spinner');
+        var $spinner = $info.find('h2 .fa-spinner');
         if (!$spinner.length || $spinner.data('params') != params) {
             if ($spinner.length && updateXHR) {
                 updateXHR.abort();
             }
             $spinner = $('<i class="fa fa-spinner fa-spin"></i>').data('params', params);
-            $('#info h2').append($spinner);
+            $info.find('h2').append($spinner);
             history.replaceState(null, null, params);
             updateXHR = $.ajax({
                 url: params,
