@@ -21,6 +21,7 @@ form#filters select:focus {
 }
 
 form#filters select,
+form#filters .log-text-input,
 form#filters .log-datepicker {
     -webkit-appearance: none;
     -moz-appearance: none;
@@ -30,6 +31,10 @@ form#filters .log-datepicker {
     position: relative;
     padding: .5em 2.25rem .5rem 1rem !important;
     cursor: pointer;
+}
+
+form#filters .log-text-input {
+    padding: .5em 1rem !important;
 }
 
 form#filters select::-ms-expand {

@@ -22,7 +22,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.17.0',
+            'version' => '1.18.0',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -98,6 +98,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                     'label' => __("Date range"),
                     'options' => [],
                     'translate' => false,
+                ],
+                'field' => [
+                    'label' => __("Field"),
+                    'options' => [],
+                    'translate' => false,
+                    'notes' => __("May cause performance issues, especially if there is a large amount of data. Use with caution."),
                 ],
             ],
             'rss_content_type' => 0,
@@ -279,6 +285,12 @@ class ProcessChangelog extends Process implements ConfigurableModule {
         $field->icon = "filter";
         foreach ($data['available_filters'] as $name => $filter) {
             $field->addOption($name, $filter['label']);
+            if (!empty($filter['notes'])) {
+                if (strpos($field->notes, "\n\n") === false) {
+                    $field->notes .= "\n\n" . __("Filter specific notes:") . "\n\n";
+                }
+                $field->notes .= "- **" . $filter['label'] . "**: " . $filter['notes'];
+            }
         }
         $field->value = $data['visible_filters'];
         $visibility->add($field);
@@ -624,9 +636,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         }
                         break;
                     case "field":
-                        // note: this option is intentionally left out of the GUI in part due to bad performance with
-                        // larger amounts of data
-                        $value = preg_quote($value);
+                        $value = preg_quote($this->sanitizer->fieldName($value));
                         $where[] = self::TABLE_NAME . ".data REGEXP '\"Fields edited\"\:\"(?:.*? |){$value}(?:,|\")'";
                         break;
                     case "flags":
@@ -1322,6 +1332,37 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                          . " name='date_until'"
                          . " class='log-datepicker'"
                          . " />"
+                         . "</div>";
+            }
+
+            // field
+            if (in_array('field', $this->visible_filters)) {
+                $field_value = $this->input->get->fieldName('field');
+                $field_width = 10;
+                $field_suggestions = [];
+                foreach ($this->fields->getAll() as $field) {
+                    if (in_array($field->type->name, [
+                        'FieldtypeFieldsetOpen',
+                        'FieldtypeFieldsetClose',
+                    ])) continue;
+                    if ($field->flags & Field::flagSystem) continue;
+                    $field_suggestions[$field->name] = '<option value="' . $field->name . '">' . ($field->label ?: $field->name) . '</option>';
+                    if (strlen($field->name) > $field_width) $field_width = strlen($field->name);
+                }
+                $markup .= "<span class='filter-label' aria-hidden='true'>"
+                         . $this->_('for field')
+                         . "</span>";
+                $markup .= "<div class='filter no-icon'>"
+                         . "<input type='text'"
+                         . " value='{$field_value}'"
+                         . " size='{$field_width}'"
+                         . " name='field'"
+                         . " list='log-field-suggestions'"
+                         . " class='log-text-input'"
+                         . " />"
+                         . "<datalist id='log-field-suggestions'>"
+                         . implode('', $field_suggestions)
+                         . "</div>"
                          . "</div>";
             }
         }
