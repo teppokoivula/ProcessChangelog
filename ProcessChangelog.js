@@ -75,13 +75,20 @@ $(document).ready(function() {
         $table.on('click', 'a.remove-row', function() {
             if (confirm(config.log.i18n.areYouSure)) {
                 var $link = $(this);
-                $.get($link.attr('href'), function(data) {
-                    data = $.parseJSON(data);
+                var postData = { id: ($link.attr('href').match(/[?&]id=(\d+)/) || [])[1] };
+                postData[config.log.csrf.name] = config.log.csrf.value;
+                $.post($link.attr('href').split('?')[0], postData, function(data) {
+                    data = typeof data === 'string' ? $.parseJSON(data) : data;
                     if (data && !data.error) {
-                        $link.parents('tr:first').fadeOut('500');
+                        var $row = $link.parents('tr:first');
+                        // also remove the details row, if it's currently open
+                        $row.next('tr.more').remove();
+                        $row.fadeOut('500');
                     } else {
                         alert(config.log.i18n.removeFailed);
                     }
+                }).fail(function() {
+                    alert(config.log.i18n.removeFailed);
                 });
             }
             return false;

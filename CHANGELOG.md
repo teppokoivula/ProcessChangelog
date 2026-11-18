@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.19.0] - 2026-11-18
+
+### Security
+- Removing rows now requires a POST request with a valid CSRF token.
+- Minor hardening of request parameter handling and RSS key validation.
+
+### Fixed
+- Invalid `page` values and unknown `flags` values no longer cause errors.
+- Open details row is now removed along with the row when a row is removed.
+
 ## [1.18.0] - 2024-08-21
 
 ### Added

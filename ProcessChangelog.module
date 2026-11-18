@@ -22,7 +22,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             'summary' => __('Keep track of changes (edits, removals, additions etc.)'),
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.18.0',
+            'version' => '1.19.0',
             'singular' => true,
             'autoload' => false,
             'icon' => 'code-fork',
@@ -431,6 +431,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 
         // UI translations
         $this->config->js('log', [
+            'csrf' => [
+                'name' => $this->session->CSRF->getTokenName(),
+                'value' => $this->session->CSRF->getTokenValue(),
+            ],
             'i18n' => [
                 'more' => $this->_("more"),
                 'less' => $this->_("less"),
@@ -643,7 +647,15 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                         $join = "LEFT OUTER JOIN pages ON pages.id = " . self::TABLE_NAME . ".pages_id";
                         if (!in_array($join, $joins)) $joins[] = $join;
                         $joins[] = "JOIN templates ON templates.id IN(pages.templates_id, " . self::TABLE_NAME . ".templates_id)";
-                        if ($flag = constant("Template::flag$value") ?: constant("\ProcessWire\Template::flag$value")) {
+                        // constant() throws an Error for undefined constants on PHP 8, so check with defined() first
+                        $flag = 0;
+                        foreach (["Template::flag$value", "\ProcessWire\Template::flag$value"] as $flag_constant) {
+                            if (defined($flag_constant)) {
+                                $flag = constant($flag_constant);
+                                break;
+                            }
+                        }
+                        if ($flag) {
                             // since this is a bitwise operation, we need to modify our operator logic... a bit :)
                             $negation = strpos($operator, "!") === 0;
                             $where[] = "templates.flags & " . (int) $flag;
@@ -689,8 +701,9 @@ class ProcessChangelog extends Process implements ConfigurableModule {
 			? (int) $this->input->get->limit
 			: (int) $this->row_limit;
         if ($limit && $total > $limit) {
-            if ($this->input->get->page) $start = ($this->input->get->page-1)*$limit;
-            if ($start > $total) $start = $total-$limit;
+            $page = max(1, (int) $this->input->get->page);
+            $start = ($page-1)*$limit;
+            if ($start > $total) $start = max(0, $total-$limit);
         }
 
         // put together ORDER BY
@@ -706,8 +719,10 @@ class ProcessChangelog extends Process implements ConfigurableModule {
                 'operation',
                 'timestamp',
             ];
-            if (in_array(ltrim($this->input->get->sort, '-'), $sort_fields)) {
-                $sort = $this->input->get->sort;
+            $requested_sort = (string) $this->input->get->sort;
+            $requested_column = strpos($requested_sort, '-') === 0 ? substr($requested_sort, 1) : $requested_sort;
+            if (in_array($requested_column, $sort_fields, true)) {
+                $sort = $requested_sort;
                 $sort_order = strpos($sort, "-") === 0 ? "DESC" : "ASC";
                 if ($sort_order == "DESC") $sort = substr($sort, 1);
                 if ($sort == "timestamp") $sort = "id";
@@ -1099,10 +1114,15 @@ class ProcessChangelog extends Process implements ConfigurableModule {
      */
     public function ___executeDelete() {
         if (!$this->optional_permissions['remove']->id || $this->user->hasPermission($this->optional_permissions['remove'])) {
-            if ((int) $this->input->get->id != $this->input->get->id) {
+            // state-changing action: require POST and a valid CSRF token (throws WireCSRFException)
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new WireException($this->_("Invalid request method."));
+            }
+            $this->session->CSRF->validate();
+            $id = (int) $this->input->post->id;
+            if ($id < 1) {
                 return false;
             }
-            $id = (int) $this->input->get->id;
             $sql = "DELETE FROM " . self::TABLE_NAME . " WHERE id=:id LIMIT 1";
             $stmt = $this->database->prepare($sql);
             $stmt->bindValue(':id', $id, \PDO::PARAM_INT);
@@ -1134,7 +1154,7 @@ class ProcessChangelog extends Process implements ConfigurableModule {
             $join_flags = "";
             if ($this->input->get->flags) {
                 $flag = str_replace("_", "", $this->sanitizer->name($this->input->get->flags));
-                if (constant("Template::flag{$flag}")) {
+                if (defined("Template::flag{$flag}") && constant("Template::flag{$flag}")) {
                     $and_on = "templates.flags & " . constant("Template::flag{$flag}");
                     if (strpos($this->input->get->flags, "!") === 0) $and_on = "NOT({$and_on})";
                     $join_flags .= "JOIN templates "

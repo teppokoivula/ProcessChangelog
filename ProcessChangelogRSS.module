@@ -22,7 +22,7 @@ class ProcessChangelogRSS extends WireData implements Module, ConfigurableModule
             'summary' => __('Output an RSS feed from Process Changelog data'),
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.0.1',
+            'version' => '1.0.2',
             'singular' => true,
             'autoload' => true,
             'icon' => 'rss',
@@ -78,7 +78,7 @@ class ProcessChangelogRSS extends WireData implements Module, ConfigurableModule
     public function init() {
 
         // make sure that a key is configured and that a valid key was provided for current request
-        if (!is_string($this->key) || !strlen($this->key) || !is_string($this->input->get->key) || $this->input->get->key !== $this->key) {
+        if (!is_string($this->key) || !strlen($this->key) || !is_string($this->input->get->key) || !hash_equals($this->key, (string) $this->input->get->key)) {
             return;
         }
 
