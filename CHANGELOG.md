@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.19.1] - 2026-11-18
+
+### Fixed
+- Automatic cleanup now runs also when only "Data max rows" is defined (previously a max age was also required).
+- Apostrophes are no longer removed from logged details.
+- RSS feed no longer breaks when details contain an ampersand.
+
+### Changed
+- New installs no longer force the MyISAM storage engine for the database table (existing tables are not modified).
+
 ## [1.19.0] - 2026-11-18
 
 ### Security

@@ -31,7 +31,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             'summary' => 'Hooks required by Process Changelog for collecting data',
             'href' => 'https://processwire.com/modules/process-changelog/',
             'author' => 'Teppo Koivula',
-            'version' => '1.11.3',
+            'version' => '1.11.4',
             'singular' => true,
             'autoload' => true,
             'requires' => 'ProcessChangelog',
@@ -322,8 +322,8 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             $this->updateDatabaseSchema();
         }
 
-        // trigger cleanup once a day
-        if ($this->data_max_age) {
+        // trigger cleanup once a day (if max age and/or max rows is defined)
+        if ($this->data_max_age || $this->data_max_rows) {
             $this->addHook("LazyCron::everyDay", $this, 'cleanup');
         }
 
@@ -769,7 +769,6 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         // validate and encode details to JSON
         if ($details) {
             foreach ($details as &$detail) {
-                $detail = str_replace("'", "", $detail);
                 $detail = wire()->sanitizer->text($detail);
             }
             $details = json_encode($details);
@@ -959,7 +958,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             operation VARCHAR(128) NOT NULL,
             data TEXT DEFAULT NULL,
             timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        ) ENGINE = MYISAM;
+        );
         ";
         $this->database->exec($sql);
 
