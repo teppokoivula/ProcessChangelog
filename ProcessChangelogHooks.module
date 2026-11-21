@@ -8,7 +8,7 @@
  * 
  * For detailed information and installation instructions see README.md.
  *
- * @copyright 2013-2024 Teppo Koivula
+ * @copyright Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */
 class ProcessChangelogHooks extends WireData implements Module, ConfigurableModule {

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.19.2] - 2026-11-21
+
 ### Fixed
 - "Using null as an array offset is deprecated" notices (PHP 8.5+) in the ProcessChangelogHooks module config.
 

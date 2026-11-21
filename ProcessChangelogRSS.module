@@ -6,7 +6,7 @@
  * This module provides an optional RSS feed for the data collected by Process Changelog. RSS feeds can be accessed via
  * a pre-defined URL and a key stored within the configuration settings of this module.
  *
- * @copyright 2016-2022 Teppo Koivula
+ * @copyright Teppo Koivula
  * @license https://www.gnu.org/licenses/gpl-2.0.txt GNU General Public License, version 2
  */ 
 class ProcessChangelogRSS extends WireData implements Module, ConfigurableModule {
