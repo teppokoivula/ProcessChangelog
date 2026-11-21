@@ -146,7 +146,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
         $field->label = __("Caller logging");
         $field->description = __("Enable logging of path/URL for script that triggered action?");
         $field->addOptions([
-            null => __("Disabled"),
+            '' => __("Disabled"),
             'external' => __("For external callers only (CLI and external applications)"),
             'all' => __('For all callers (CLI, external applications and ProcessWire itself)'),
         ]);
@@ -291,7 +291,7 @@ class ProcessChangelogHooks extends WireData implements Module, ConfigurableModu
             $field->notes = __("Please note that since you haven't specified a max age or maximum number of rows for your changelog data, disabling the Changelog section may be preferable. Otherwise large amounts of changelog data may result in slow load times for the page editor.");
         }
         $field->addOptions([
-            null => __("Disabled"),
+            '' => __("Disabled"),
             1 => __("For everyone"),
             2 => __("For users with the Changelog permission"),
             3 => __("For superusers only"),
